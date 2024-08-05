@@ -6,6 +6,7 @@ from django.conf.urls.static import static
 from Course.views import CourseListViewSet, CourseDetailViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet
 from Class.views import ClassViewSet, PostViewSet, CommentViewSet, JoinRequestViewSet, ActivityViewSet, SubmissionViewSet, AttachmentViewSet
 from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
+from Quiz.views import QuizViewSet, StudentQuizAttemptViewSet
 #from DailyChallenge.views import DailyChallengeViewSet, DailyChallengeQuestionViewSet, DailyChallengeLeaderboardViewSet
 from User.views import StudentViewSet, TeacherViewSet
 from Course import views
@@ -32,7 +33,9 @@ router.register(r'attachments', AttachmentViewSet)
 router.register(r'pages', PageViewSet, basename='page')
 router.register(r'questions', QuestionViewSet, basename='questions')
 router.register(r'choices', ChoiceViewSet, basename='choices')
-router.register(r'student-answers', StudentAnswerViewSet, basename='student-answers')
+router.register(r'studentAnswers', StudentAnswerViewSet, basename='studentAnswers')
+router.register(r'quizzes', QuizViewSet, basename='quizzes')
+router.register(r'studentQuizAttempt', StudentQuizAttemptViewSet, basename='studentQuizAttempt')
 # router.register(r'daily-challenges', DailyChallengeViewSet, basename='daily-challenges')
 # router.register(r'daily-challenge-questions', DailyChallengeQuestionViewSet, basename='daily-challenge-questions')
 # router.register(r'leaderboards', DailyChallengeLeaderboardViewSet, basename='leaderboards')

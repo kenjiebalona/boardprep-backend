@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from .models import Question, Choice, StudentAnswer
-from .serializer import QuestionSerializer, ChoiceSerializer, StudentAnswerSerializer, QuestionCreateSerializer
+from .serializer import QuestionSerializer, ChoiceSerializer, StudentAnswerSerializer
 
 
 class QuestionViewSet(viewsets.ModelViewSet):
@@ -19,11 +19,11 @@ class QuestionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
-        serializer = QuestionCreateSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            question = serializer.save()
+            self.perform_create(serializer)
             headers = self.get_success_headers(serializer.data)
-            return Response(QuestionSerializer(question).data, status=status.HTTP_201_CREATED, headers=headers)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, *args, **kwargs):

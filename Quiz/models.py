@@ -17,7 +17,7 @@ class StudentQuizAttempt(models.Model):
     id = models.AutoField(primary_key=True)
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
-    score = models.IntegerField()
+    score = models.IntegerField(null=True, blank=True)
     total_questions = models.IntegerField()
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
