@@ -3,6 +3,7 @@
 __pycache__/
 media/attachments
 venv/
+.idea/
 .env
 
 # Byte-compiled / optimized / DLL files

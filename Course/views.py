@@ -5,7 +5,7 @@ from rest_framework.decorators import action, parser_classes
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from .models import Course, Lesson, Syllabus, Page, FileUpload
-from Mocktest.models import MockTest
+#from Mocktest.models import MockTest
 from Course.serializer import CourseListSerializer, CourseDetailSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -31,10 +31,10 @@ class CourseListViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseListSerializer
 
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        queryset = queryset.annotate(hasMocktest=Exists(MockTest.objects.filter(course=OuterRef('pk'))))
-        return queryset
+    # def get_queryset(self):
+    #     queryset = super().get_queryset()
+    #     queryset = queryset.annotate(hasMocktest=Exists(MockTest.objects.filter(course=OuterRef('pk'))))
+    #     return queryset
 
 
     @action(detail=False, methods=['get'], url_path='check_id/(?P<course_id>[^/.]+)')

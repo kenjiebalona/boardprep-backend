@@ -1,0 +1,37 @@
+from django.db import models
+
+
+# Create your models here.
+class Question(models.Model):
+    id = models.AutoField(primary_key=True)
+    topic = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
+    text = models.TextField()
+    difficulty = models.IntegerField(choices=[(1, 'Easy'), (2, 'Medium'), (3, 'Hard')])
+
+    def __str__(self):
+        difficulty_label = dict(self._meta.get_field('difficulty').choices).get(self.difficulty, 'Unknown')
+        return f"Question ID: {self.id} - Difficulty: {difficulty_label} - Text: {self.text[:50]}..."
+
+
+class Choice(models.Model):
+    id = models.AutoField(primary_key=True)
+    question = models.ForeignKey(Question, related_name='choices', on_delete=models.CASCADE)
+    text = models.CharField(max_length=255)
+    is_correct = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Choice ID: {self.id} - Question ID: {self.question.id} - Text: {self.text} - Correct: {self.is_correct}"
+
+
+class StudentAnswer(models.Model):
+    id = models.AutoField(primary_key=True)
+    student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    selected_choice = models.ForeignKey(Choice, on_delete=models.CASCADE)
+    is_correct = models.BooleanField()
+    quiz_attempt = models.ForeignKey('Quiz.StudentQuizAttempt', null=True, blank=True, on_delete=models.CASCADE)
+    exam_attempt = models.ForeignKey('Exam.StudentExamAttempt', null=True, blank=True, on_delete=models.CASCADE)
+    challenge_attempt = models.ForeignKey('Challenge.StudentChallengeAttempt', null=True, blank=True, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"Student: {self.student.id} - Question: {self.question.id} - Choice: {self.selected_choice.id} - Correct: {self.is_correct}"
