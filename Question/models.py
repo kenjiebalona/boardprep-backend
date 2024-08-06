@@ -45,9 +45,14 @@ class QuestionGenerator(models.Model):
         abstract = True
 
     def generate_questions(self, num_easy, num_medium, num_hard, filter_by=None):
-        easy_questions = Question.objects.filter(difficulty=1, **(filter_by or {})).order_by('?')[:num_easy]
-        medium_questions = Question.objects.filter(difficulty=2, **(filter_by or {})).order_by('?')[:num_medium]
-        hard_questions = Question.objects.filter(difficulty=3, **(filter_by or {})).order_by('?')[:num_hard]
+        if filter_by:
+            easy_questions = Question.objects.filter(difficulty=1, **filter_by).order_by('?')[:num_easy]
+            medium_questions = Question.objects.filter(difficulty=2, **filter_by).order_by('?')[:num_medium]
+            hard_questions = Question.objects.filter(difficulty=3, **filter_by).order_by('?')[:num_hard]
+        else:
+            easy_questions = Question.objects.filter(difficulty=1).order_by('?')[:num_easy]
+            medium_questions = Question.objects.filter(difficulty=2).order_by('?')[:num_medium]
+            hard_questions = Question.objects.filter(difficulty=3).order_by('?')[:num_hard]
 
         questions = list(easy_questions) + list(medium_questions) + list(hard_questions)
 

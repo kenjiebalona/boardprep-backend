@@ -18,7 +18,10 @@ class ChallengeViewSet(viewsets.ModelViewSet):
         challenge, created = Challenge.objects.get_or_create(date=today)
 
         if created:
-            challenge.generate_challenge(num_easy=3, num_medium=2, num_hard=1)
+            try:
+                challenge.generate_questions(num_easy=3, num_medium=2, num_hard=1)
+            except ValueError as e:
+                return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(challenge)
         return Response(serializer.data)

@@ -12,7 +12,10 @@ class Challenge(QuestionGenerator):
         return f"Daily Challenge for {self.date}"
 
     def generate_questions(self, num_easy, num_medium, num_hard):
-        return super().generate_questions(num_easy, num_medium, num_hard)
+        questions = super().generate_questions(num_easy, num_medium, num_hard)
+        self.questions.set(questions)
+        self.save()
+        return questions
 
 
 class StudentChallengeAttempt(models.Model):
