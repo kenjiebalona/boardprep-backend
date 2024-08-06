@@ -1,17 +1,25 @@
 from django.db import models
 from django.utils import timezone
 
+from Course.models import Lesson
+from Question.models import QuestionGenerator
+
 
 # Create your models here.
-class Exam(models.Model):
+class Exam(QuestionGenerator):
     id = models.AutoField(primary_key=True)
     classID = models.ForeignKey('Class.Class', on_delete=models.CASCADE, blank=True, null=True)
     course = models.ForeignKey('Course.Course', on_delete=models.CASCADE, blank=True, null=True)
     title = models.CharField(max_length=200)
-    questions = models.ManyToManyField('Question.Question')
 
     def __str__(self):
         return self.title
+
+    def generate_questions(self, num_easy, num_medium, num_hard):
+        lessons = Lesson.objects.filter(syllabus__course=self.course)
+
+        filter_by = {'topic__in': lessons}
+        return super().generate_questions(num_easy, num_medium, num_hard, filter_by)
 
 
 class StudentExamAttempt(models.Model):

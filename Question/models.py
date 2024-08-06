@@ -1,4 +1,5 @@
 from django.db import models
+import random
 
 
 # Create your models here.
@@ -35,3 +36,23 @@ class StudentAnswer(models.Model):
 
     def __str__(self):
         return f"Student: {self.student.id} - Question: {self.question.id} - Choice: {self.selected_choice.id} - Correct: {self.is_correct}"
+
+
+class QuestionGenerator(models.Model):
+    questions = models.ManyToManyField('Question.Question')
+
+    class Meta:
+        abstract = True
+
+    def generate_questions(self, num_easy, num_medium, num_hard, filter_by=None):
+        easy_questions = Question.objects.filter(difficulty=1, **(filter_by or {})).order_by('?')[:num_easy]
+        medium_questions = Question.objects.filter(difficulty=2, **(filter_by or {})).order_by('?')[:num_medium]
+        hard_questions = Question.objects.filter(difficulty=3, **(filter_by or {})).order_by('?')[:num_hard]
+
+        questions = list(easy_questions) + list(medium_questions) + list(hard_questions)
+
+        if len(questions) < num_easy + num_medium + num_hard:
+            raise ValueError("Insufficient questions available to meet the requested quantities.")
+
+        random.shuffle(questions)
+        return questions

@@ -1,16 +1,21 @@
 from django.db import models
 from django.utils import timezone
 
+from Question.models import QuestionGenerator
+
 
 # Create your models here.
-class Quiz(models.Model):
+class Quiz(QuestionGenerator):
     id = models.AutoField(primary_key=True)
-    topic = models.OneToOneField('Course.Lesson', on_delete=models.CASCADE)
+    topic = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
-    questions = models.ManyToManyField('Question.Question')
 
     def __str__(self):
         return self.title
+
+    def generate_questions(self, num_easy, num_medium, num_hard):
+        filter_by = {'topic': self.topic}
+        return super().generate_questions(num_easy, num_medium, num_hard, filter_by)
 
 
 class StudentQuizAttempt(models.Model):

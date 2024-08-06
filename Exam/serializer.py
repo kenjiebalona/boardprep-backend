@@ -5,23 +5,11 @@ from .models import Exam, StudentExamAttempt
 
 
 class ExamSerializer(serializers.ModelSerializer):
-    questions = QuestionSerializer(many=True)
+    questions = QuestionSerializer(many=True, read_only=True)
 
     class Meta:
         model = Exam
         fields = ['id', 'classID', 'course', 'title', 'questions']
-
-    def create(self, validated_data):
-        questions_data = validated_data.pop('questions', [])
-        exam = Exam.objects.create(**validated_data)
-        for question_data in questions_data:
-            question_serializer = QuestionSerializer(data=question_data)
-            if question_serializer.is_valid():
-                question_instance = question_serializer.save()
-                exam.questions.add(question_instance)
-            else:
-                raise serializers.ValidationError(question_serializer.errors)
-        return exam
 
 
 class StudentExamAttemptSerializer(serializers.ModelSerializer):

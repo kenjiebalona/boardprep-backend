@@ -17,9 +17,20 @@ class ExamViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            num_easy = 3  # Example hardcoded values
+            num_medium = 2
+            num_hard = 1
+            exam = serializer.save()
+            try:
+                questions = exam.generate_questions(num_easy, num_medium, num_hard)
+            except ValueError as e:
+                exam.delete()
+                return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            exam.questions.set(questions)
+            exam.save()
+            response_serializer = self.get_serializer(exam)
+            headers = self.get_success_headers(response_serializer.data)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, *args, **kwargs):

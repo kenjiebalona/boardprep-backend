@@ -1,29 +1,18 @@
 from django.db import models
 from django.utils import timezone
-import random
-from Question.models import Question
+from Question.models import Question, QuestionGenerator
 
 
 # Create your models here.
-class Challenge(models.Model):
+class Challenge(QuestionGenerator):
     challengeID = models.BigAutoField(primary_key=True)
     date = models.DateField(default=timezone.now, unique=True)
-    questions = models.ManyToManyField('Question.Question')
 
     def __str__(self):
         return f"Daily Challenge for {self.date}"
 
-    def generate_challenge(self, num_easy, num_medium, num_hard):
-        easy_questions = list(Question.objects.filter(difficulty=1).order_by('?')[:num_easy])
-        medium_questions = list(Question.objects.filter(difficulty=2).order_by('?')[:num_medium])
-        hard_questions = list(Question.objects.filter(difficulty=3).order_by('?')[:num_hard])
-
-        questions = easy_questions + medium_questions + hard_questions
-        random.shuffle(questions)
-
-        for question in questions:
-            self.questions.add(question)
-        self.save()
+    def generate_questions(self, num_easy, num_medium, num_hard):
+        return super().generate_questions(num_easy, num_medium, num_hard)
 
 
 class StudentChallengeAttempt(models.Model):
