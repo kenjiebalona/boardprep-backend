@@ -1,13 +1,19 @@
+from collections import defaultdict
 from django.shortcuts import render
+from Course.models import StudentLessonProgress
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from Question.models import StudentAnswer, Choice
-from .models import Exam, StudentExamAttempt
+from Question.models import Question, StudentAnswer, Choice
+from Quiz.models import StudentQuizAttempt
+from .models import Exam, ExamQuestion, StudentExamAttempt
 from .serializer import ExamSerializer, StudentExamAttemptSerializer
 from openai import OpenAI
 import os, environ
+from django.db.models import Avg
 
+#python manage.py test Exam.tests
 
 # Create your views here.
 class ExamViewSet(viewsets.ModelViewSet):
@@ -51,6 +57,130 @@ class ExamViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    @action(detail=True, methods=['post'])
+    def generate_adaptive_exam(self, request, pk=None):
+        exam = self.get_object()
+        student = request.user.student
+        quiz_attempts = StudentQuizAttempt.objects.filter(student=student)
+        
+        question_counts = self._calculate_question_counts(quiz_attempts)
+        difficulty_distribution = self._get_difficulty_distribution()
+        
+        self._select_questions(exam, question_counts, difficulty_distribution)
+        
+        exam_questions = ExamQuestion.objects.filter(exam=exam)
+        avg_difficulty = exam_questions.aggregate(Avg('question__difficulty'))['question__difficulty__avg']
+        
+        return Response({
+            'status': 'Adaptive exam generated',
+            'questions': list(exam_questions.values_list('id', flat=True)),
+            'question_distribution': question_counts,
+            'average_difficulty': avg_difficulty
+        }, status=status.HTTP_200_OK)
+
+    def _calculate_question_counts(self, quiz_attempts):
+        total_lessons = quiz_attempts.values('quiz__topic').distinct().count()
+        avg_questions_per_lesson = 100 / total_lessons
+        question_counts = {}
+
+        for attempt in quiz_attempts:
+            lesson = attempt.quiz.topic
+            weight = self._get_weight(attempt.score)
+            count = max(1, int(avg_questions_per_lesson * weight))
+            question_counts[lesson.lesson_id] = count
+
+        return self._adjust_question_counts(question_counts)
+
+    def _get_weight(self, score):
+        if score < 60:
+            return 1.5
+        elif score < 70:
+            return 1.0
+        else:
+            return 0.5
+
+    def _adjust_question_counts(self, question_counts):
+        total_questions = sum(question_counts.values())
+        adjustment_factor = 100 / total_questions
+        
+        adjusted_counts = {lesson_id: max(1, int(count * adjustment_factor)) for lesson_id, count in question_counts.items()}
+        
+        # Ensure the total is exactly 100
+        while sum(adjusted_counts.values()) != 100:
+            if sum(adjusted_counts.values()) < 100:
+                max_key = max(adjusted_counts, key=adjusted_counts.get)
+                adjusted_counts[max_key] += 1
+            else:
+                min_key = min(adjusted_counts, key=adjusted_counts.get)
+                adjusted_counts[min_key] -= 1
+
+        return adjusted_counts
+
+    def _get_difficulty_distribution(self):
+        return defaultdict(lambda: {1: 0.33, 2: 0.33, 3: 0.34})
+
+    def _select_questions(self, exam, question_counts, difficulty_distribution):
+        for lesson_id, count in question_counts.items():
+            lesson_questions = 0
+            for difficulty, proportion in difficulty_distribution[lesson_id].items():
+                diff_count = int(count * proportion)
+                questions = Question.objects.filter(topic_id=lesson_id, difficulty=difficulty).order_by('?')[:diff_count]
+                for question in questions:
+                    ExamQuestion.objects.create(exam=exam, question=question)
+                lesson_questions += questions.count()
+            print(f"Lesson {lesson_id}: {lesson_questions} questions selected")
+
+        
+    @action(detail=True, methods=['post'])
+    def submit_exam(self, request, pk=None):
+        exam = self.get_object()
+        student = request.user.student
+        
+        # Process exam submission
+        score = self.calculate_score(request.data['answers'])
+        passed = score >= exam.passing_score
+        
+        # Create StudentExamAttempt
+        attempt = StudentExamAttempt.objects.create(
+            student=student,
+            exam=exam,
+            score=score,
+            passed=passed
+        )
+        
+        if not passed:
+            # Reset progress for failed lessons
+            failed_lessons = self.get_failed_lessons(request.data['answers'])
+            StudentLessonProgress.objects.filter(
+                student=student,
+                lesson__in=failed_lessons
+            ).update(is_completed=False)
+        
+        serializer = StudentExamAttemptSerializer(attempt)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def calculate_score(self, answers):
+        correct_answers = sum(1 for answer in answers if answer['is_correct'])
+        return correct_answers / len(answers)
+
+    def get_failed_lessons(self, answers):
+        # Group answers by lesson and calculate score for each lesson
+        lesson_scores = {}
+        for answer in answers:
+            lesson = answer['question'].quiz.topic
+            if lesson not in lesson_scores:
+                lesson_scores[lesson] = {'correct': 0, 'total': 0}
+            lesson_scores[lesson]['total'] += 1
+            if answer['is_correct']:
+                lesson_scores[lesson]['correct'] += 1
+        
+        # Identify lessons with score below 75%
+        failed_lessons = [
+            lesson for lesson, scores in lesson_scores.items()
+            if scores['correct'] / scores['total'] < 0.75
+        ]
+        return failed_lessons
 
 
 class StudentExamAttemptViewSet(viewsets.ModelViewSet):

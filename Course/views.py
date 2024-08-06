@@ -4,9 +4,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, parser_classes
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
-from .models import Course, Lesson, Syllabus, Page, FileUpload
-#from Mocktest.models import MockTest
-from Course.serializer import CourseListSerializer, CourseDetailSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer
+from .models import Course, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload
+from Course.serializer import CourseListSerializer, CourseDetailSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import FileSystemStorage
@@ -183,4 +182,29 @@ class FileUploadViewSet(viewsets.ModelViewSet):
     queryset = FileUpload.objects.all()
     serializer_class = FileUploadSerializer
 
+class StudentLessonProgressViewSet(viewsets.ModelViewSet):
+    queryset = StudentLessonProgress.objects.all()
+    serializer_class = StudentLessonProgressSerializer
 
+    @action(detail=False, methods=['get'])
+    def by_student_and_course(self, request):
+        student_id = request.query_params.get('student_id')
+        course_id = request.query_params.get('course_id')
+        if student_id and course_id:
+            progress = self.queryset.filter(student_id=student_id, lesson__syllabus__course_id=course_id)
+            serializer = self.get_serializer(progress, many=True)
+            return Response(serializer.data)
+        return Response({"error": "Both student_id and course_id are required"}, status=400)
+
+class StudentCourseProgressViewSet(viewsets.ModelViewSet):
+    queryset = StudentCourseProgress.objects.all()
+    serializer_class = StudentCourseProgressSerializer
+
+    @action(detail=False, methods=['get'])
+    def by_student(self, request):
+        student_id = request.query_params.get('student_id')
+        if student_id:
+            progress = self.queryset.filter(student_id=student_id)
+            serializer = self.get_serializer(progress, many=True)
+            return Response(serializer.data)
+        return Response({"error": "student_id is required"}, status=400)

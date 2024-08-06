@@ -12,7 +12,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-
 # Distribution / packaging
 .Python
 build/
@@ -75,3 +74,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Ignore Django migrations
+*/migrations/*.py
+!*/migrations/__init__.py
+*/migrations/*.pyc

@@ -20,6 +20,10 @@ class User(models.Model):
     last_login = models.DateField(auto_now=True)
     user_type = models.CharField(max_length=1, choices=USER_TYPE)
     is_premium = models.BooleanField(default=False)
+    
+    @property
+    def is_authenticated(self):
+        return True
 
 class Specialization(models.Model):
     CHOICES = [

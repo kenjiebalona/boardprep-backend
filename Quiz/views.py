@@ -5,7 +5,6 @@ from rest_framework.response import Response
 from Quiz.models import Quiz, StudentQuizAttempt
 from Quiz.serializer import QuizSerializer, StudentQuizAttemptSerializer
 
-
 # Create your views here.
 class QuizViewSet(viewsets.ModelViewSet):
     queryset = Quiz.objects.all()

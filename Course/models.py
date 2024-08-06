@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
 
@@ -30,6 +31,32 @@ class Lesson(models.Model):
 
     def __str__(self):
         return f"{self.lesson_title} - {self.syllabus.course.course_title}"
+    
+class StudentLessonProgress(models.Model):
+    student = models.ForeignKey('User.Student', on_delete=models.CASCADE)  # Assuming you have a Student model
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
+    is_completed = models.BooleanField(default=False)
+    
+    class Meta:
+        unique_together = ('student', 'lesson')
+
+class StudentCourseProgress(models.Model):
+    student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    is_completed = models.BooleanField(default=False)
+    completion_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('student', 'course')
+
+    def __str__(self):
+        return f"{self.student} - {self.course} - {'Completed' if self.is_completed else 'In Progress'}"
+
+    def update_progress(self):
+        if self.course.all_lessons_completed(self.student):
+            self.is_completed = True
+            self.completion_date = timezone.now()
+            self.save()
 
 class Page(models.Model):
     syllabus = models.ForeignKey(Syllabus, on_delete=models.CASCADE, related_name='pages_by_syllabus')

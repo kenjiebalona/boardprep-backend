@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from bs4 import BeautifulSoup
 from django.conf import settings
-from Course.models import Course, Syllabus, Lesson,  Page, FileUpload
+from Course.models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson,  Page, FileUpload
 from datetime import datetime
 import time
 
@@ -84,7 +84,6 @@ class SyllabusSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-
 class CourseListSerializer(serializers.ModelSerializer):
     hasMocktest = serializers.SerializerMethodField()
     syllabus = SyllabusSerializer(read_only=True)
@@ -121,5 +120,15 @@ class CourseDetailSerializer(serializers.ModelSerializer):
         syllabus_id = generate_syllabus_id(course)  # Use the function
         Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
         return course
+
+class StudentLessonProgressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentLessonProgress
+        fields = ['id', 'student', 'lesson', 'is_completed']
+
+class StudentCourseProgressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentCourseProgress
+        fields = ['id', 'student', 'course', 'is_completed', 'completion_date']
 
 

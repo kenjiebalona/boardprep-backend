@@ -5,7 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from Challenge.views import ChallengeViewSet, StudentChallengeAttemptViewSet
-from Course.views import CourseListViewSet, CourseDetailViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet
+from Course.views import CourseListViewSet, CourseDetailViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet
 from Class.views import ClassViewSet, PostViewSet, CommentViewSet, JoinRequestViewSet, ActivityViewSet, SubmissionViewSet, AttachmentViewSet
 from Exam.views import ExamViewSet, StudentExamAttemptViewSet
 from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
@@ -42,6 +42,10 @@ router.register(r'exams', ExamViewSet, basename='exams')
 router.register(r'studentExamAttempt', StudentExamAttemptViewSet, basename='studentExamAttempt')
 router.register(r'challenges', ChallengeViewSet, basename='challenges')
 router.register(r'studentChallengeAttempt', StudentChallengeAttemptViewSet, basename='studentChallengeAttempt')
+router.register(r'student-answers', StudentAnswerViewSet, basename='student-answers')
+router.register(r'student-lesson-progress', StudentLessonProgressViewSet, basename='student-lesson-progress')
+router.register(r'student-course-progress', StudentCourseProgressViewSet, basename='student-course-progress')
+
 # router.register(r'daily-challenges', DailyChallengeViewSet, basename='daily-challenges')
 # router.register(r'daily-challenge-questions', DailyChallengeQuestionViewSet, basename='daily-challenge-questions')
 # router.register(r'leaderboards', DailyChallengeLeaderboardViewSet, basename='leaderboards')
@@ -64,6 +68,10 @@ urlpatterns = [
     path('lessons/<str:lesson_id>/pages/', LessonViewSet.as_view({'get': 'get_lesson_pages'}), name='lesson-pages'),
     path('media/uploads/', views.upload_image, name='upload_image'),
     path('pages/<str:lesson_id>/<int:page_number>/', PageViewSet.as_view({'get': 'by_lesson_and_page', 'put': 'by_lesson_and_page', 'delete': 'by_lesson_and_page'}), name='page-detail'),
+    path('student-lesson-progress/by-student-and-course/', StudentLessonProgressViewSet.as_view({'get': 'by_student_and_course'}), name='student-lesson-progress-by-student-and-course'),
+    path('student-course-progress/by-student/', StudentCourseProgressViewSet.as_view({'get': 'by_student'}), name='student-course-progress-by-student'),
+    path('exams/<int:pk>/generate_adaptive_exam/', ExamViewSet.as_view({'post': 'generate_adaptive_exam'}), name='exam-generate-adaptive-exam'),
+
 ]
 
 if settings.DEBUG:
