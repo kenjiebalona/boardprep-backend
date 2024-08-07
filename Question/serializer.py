@@ -26,8 +26,7 @@ class QuestionSerializer(serializers.ModelSerializer):
         question = Question.objects.create(**validated_data)
         for choice_data in choices_data:
             Choice.objects.create(question=question, **choice_data)
-        for attachment_data in attachments_data:
-            attachment = Attachment.objects.create(**attachment_data)
+        for attachment in attachments_data:
             question.attachments.add(attachment)
         return question
 

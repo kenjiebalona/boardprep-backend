@@ -12,14 +12,15 @@ class Course(models.Model):
     image = models.ImageField(upload_to='images/', default='default.png')
     is_published = models.BooleanField(default=False)  # New field
 
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding  
+        super().save(*args, **kwargs)
+        
+        if is_new:  
+            Exam.objects.create(course=self, title=f"{self.course_title} Exam")
+
     def __str__(self):
         return self.course_title
-
-    def save(self, *args, **kwargs):
-        if not self.exam:
-            exam = Exam.objects.create(course=self, title=f"{self.course_id} Exam")
-            self.exam = exam
-        super().save(*args, **kwargs)
 
 class Syllabus(models.Model):
     course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='syllabus')

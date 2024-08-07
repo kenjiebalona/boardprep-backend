@@ -24,8 +24,6 @@ class Class(models.Model):
                 self.classCode = uuid.uuid4().hex[:6].upper()
         super(Class, self).save(*args, **kwargs)
 
-    def has_mock_test(self):
-        return self.mocktest_set.exists()
     
 class JoinRequest(models.Model):
     class_instance = models.ForeignKey(Class, on_delete=models.CASCADE)
