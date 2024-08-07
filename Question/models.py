@@ -1,6 +1,8 @@
 from django.db import models
 import random
 
+from Class.models import Attachment
+
 
 # Create your models here.
 class Question(models.Model):
@@ -8,6 +10,7 @@ class Question(models.Model):
     lesson = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
     text = models.TextField()
     difficulty = models.IntegerField(choices=[(1, 'Easy'), (2, 'Medium'), (3, 'Hard')])
+    attachments = models.ManyToManyField(Attachment, blank=True, related_name='questions')
 
     def __str__(self):
         difficulty_label = dict(self._meta.get_field('difficulty').choices).get(self.difficulty, 'Unknown')
