@@ -1,18 +1,16 @@
-from rest_framework import serializers
 from bs4 import BeautifulSoup
 from django.conf import settings
-from Course.models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson, Page, FileUpload
-from Quiz.models import Quiz
-from Exam.models import Exam  # Make sure to import the Exam model
-from datetime import datetime
-import time
+from rest_framework import serializers
 
+from Quiz.models import Quiz
+from .models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson, Page, FileUpload
+from Exam.models import Exam
+from datetime import datetime, time
 
 class PageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Page
         fields = "__all__"
-
 
 class LessonSerializer(serializers.ModelSerializer):
     pages = PageSerializer(many=True, read_only=True)
@@ -38,7 +36,7 @@ class LessonSerializer(serializers.ModelSerializer):
                 lesson.save()
 
         lesson = Lesson.objects.create(lesson_id=lesson_id, **validated_data)
-        Quiz.objects.create(topic=lesson, title=f"Quiz {lesson.order}")  # Create Quiz for the lesson
+        Quiz.objects.create(lesson=lesson, title=f"Quiz {lesson.order}")  # Create Quiz for the lesson
         return lesson
 
     def to_representation(self, instance):
@@ -62,7 +60,6 @@ class LessonSerializer(serializers.ModelSerializer):
         lesson_id = base36_encode(timestamp)
         return lesson_id[:7]  # Truncate to 5 characters
 
-
 def base36_encode(number):
     assert number >= 0, 'Positive integer required'
     if number == 0:
@@ -73,20 +70,17 @@ def base36_encode(number):
         base36 = '0123456789abcdefghijklmnopqrstuvwxyz'[i] + base36
     return base36
 
-
 class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = FileUpload
         fields = ['file', 'uploaded_at']
-
-
+        
 class SyllabusSerializer(serializers.ModelSerializer):
     lessons = LessonSerializer(many=True, read_only=True)
 
     class Meta:
         model = Syllabus
         fields = '__all__'
-
 
 class CourseListSerializer(serializers.ModelSerializer):
     syllabus = SyllabusSerializer(read_only=True)
@@ -101,12 +95,10 @@ class CourseListSerializer(serializers.ModelSerializer):
         Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
         return course
 
-
 def generate_syllabus_id(course):
     timestamp = datetime.now().strftime("%H%M%S")  # HHMMSS format
     syllabus_id = (course.course_id[:4] + timestamp)[:10]  # Ensure it's only 10 characters
     return syllabus_id
-
 
 class CourseDetailSerializer(serializers.ModelSerializer):
     syllabus = SyllabusSerializer(read_only=True)
@@ -121,12 +113,10 @@ class CourseDetailSerializer(serializers.ModelSerializer):
         Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
         return course
 
-
 class StudentLessonProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentLessonProgress
         fields = ['id', 'student', 'lesson', 'is_completed']
-
 
 class StudentCourseProgressSerializer(serializers.ModelSerializer):
     class Meta:
