@@ -5,7 +5,8 @@ from rest_framework import serializers
 from Quiz.models import Quiz
 from .models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson, Page, FileUpload
 from Exam.models import Exam
-from datetime import datetime, time
+from datetime import datetime
+import time
 
 class PageSerializer(serializers.ModelSerializer):
     class Meta:
