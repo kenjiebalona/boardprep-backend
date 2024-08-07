@@ -1,9 +1,12 @@
 from rest_framework import serializers
 from bs4 import BeautifulSoup
 from django.conf import settings
-from Course.models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson,  Page, FileUpload
+from Course.models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson, Page, FileUpload
+from Quiz.models import Quiz
+from Exam.models import Exam  # Make sure to import the Exam model
 from datetime import datetime
 import time
+
 
 class PageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,7 +37,9 @@ class LessonSerializer(serializers.ModelSerializer):
                 lesson.order += 1
                 lesson.save()
 
-        return Lesson.objects.create(lesson_id=lesson_id, **validated_data)
+        lesson = Lesson.objects.create(lesson_id=lesson_id, **validated_data)
+        Quiz.objects.create(topic=lesson, title=f"Quiz {lesson.order}")  # Create Quiz for the lesson
+        return lesson
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -57,6 +62,7 @@ class LessonSerializer(serializers.ModelSerializer):
         lesson_id = base36_encode(timestamp)
         return lesson_id[:7]  # Truncate to 5 characters
 
+
 def base36_encode(number):
     assert number >= 0, 'Positive integer required'
     if number == 0:
@@ -68,8 +74,6 @@ def base36_encode(number):
     return base36
 
 
-
-# If using a FileUpload model
 class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = FileUpload
@@ -85,12 +89,11 @@ class SyllabusSerializer(serializers.ModelSerializer):
 
 
 class CourseListSerializer(serializers.ModelSerializer):
-    hasMocktest = serializers.SerializerMethodField()
     syllabus = SyllabusSerializer(read_only=True)
 
     class Meta:
         model = Course
-        fields = ['course_id', 'course_title', 'short_description', 'image', 'syllabus', 'is_published', 'hasMocktest']
+        fields = ['course_id', 'course_title', 'short_description', 'image', 'syllabus', 'is_published']
 
     def create(self, validated_data):
         course = Course.objects.create(**validated_data)
@@ -98,15 +101,12 @@ class CourseListSerializer(serializers.ModelSerializer):
         Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
         return course
 
-    def get_hasMocktest(self, obj):
-        return obj.has_mock_test()
-
 
 def generate_syllabus_id(course):
-    # Example implementation
     timestamp = datetime.now().strftime("%H%M%S")  # HHMMSS format
     syllabus_id = (course.course_id[:4] + timestamp)[:10]  # Ensure it's only 10 characters
     return syllabus_id
+
 
 class CourseDetailSerializer(serializers.ModelSerializer):
     syllabus = SyllabusSerializer(read_only=True)
@@ -121,14 +121,14 @@ class CourseDetailSerializer(serializers.ModelSerializer):
         Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
         return course
 
+
 class StudentLessonProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentLessonProgress
         fields = ['id', 'student', 'lesson', 'is_completed']
 
+
 class StudentCourseProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentCourseProgress
         fields = ['id', 'student', 'course', 'is_completed', 'completion_date']
-
-

@@ -1,15 +1,13 @@
 from django.db import models
 from django.utils import timezone
+from django.apps import apps
 
-from Course.models import Lesson, StudentLessonProgress
 from Question.models import Question, QuestionGenerator, StudentAnswer
 
-
-# Create your models here.
 class Exam(QuestionGenerator):
     id = models.AutoField(primary_key=True)
     classID = models.ForeignKey('Class.Class', on_delete=models.CASCADE, blank=True, null=True)
-    course = models.ForeignKey('Course.Course', on_delete=models.CASCADE, blank=True, null=True)
+    course = models.ForeignKey('Course.Course', on_delete=models.CASCADE, blank=True, null=True)  # Change to ForeignKey
     title = models.CharField(max_length=200)
     questions = models.ManyToManyField(Question, through='ExamQuestion')
     passing_score = models.FloatField(default=0.75)
@@ -42,7 +40,7 @@ class StudentExamAttempt(models.Model):
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
     score = models.IntegerField(null=True, blank=True)
-    feedback = models.TextField(null=True,blank=True)
+    feedback = models.TextField(null=True, blank=True)
     total_questions = models.IntegerField()
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(null=True, blank=True)
@@ -54,10 +52,12 @@ class StudentExamAttempt(models.Model):
         self.score = self.calculate_score()
         self.save()
 
+        student_lesson_progress_model = apps.get_model('Course', 'StudentLessonProgress')
+
         if not self.passed:
             failed_lessons = self.exam.get_failed_lessons(self)
             for lesson in failed_lessons:
-                StudentLessonProgress.objects.filter(student=self.student, lesson=lesson).update(is_completed=False)
+                student_lesson_progress_model.objects.filter(student=self.student, lesson=lesson).update(is_completed=False)
 
     def calculate_score(self):
         correct_answers = StudentAnswer.objects.filter(exam_attempt=self, is_correct=True).count()

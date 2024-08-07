@@ -2,6 +2,8 @@ from django.utils import timezone
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
 
+from Exam.models import Exam
+
 class Course(models.Model):
     course_id = models.CharField(max_length=10, primary_key=True)
     course_title = models.CharField(max_length=200)
@@ -13,8 +15,11 @@ class Course(models.Model):
     def __str__(self):
         return self.course_title
 
-    def has_mock_test(self):
-        return self.mocktest_set.exists()
+    def save(self, *args, **kwargs):
+        if not self.exam:
+            exam = Exam.objects.create(course=self, title=f"{self.course_id} Exam")
+            self.exam = exam
+        super().save(*args, **kwargs)
 
 class Syllabus(models.Model):
     course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='syllabus')
