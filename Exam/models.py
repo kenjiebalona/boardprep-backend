@@ -6,7 +6,6 @@ from Question.models import Question, QuestionGenerator, StudentAnswer
 
 class Exam(QuestionGenerator):
     id = models.AutoField(primary_key=True)
-    classID = models.ForeignKey('Class.Class', on_delete=models.CASCADE, blank=True, null=True)
     course = models.OneToOneField('Course.Course', on_delete=models.CASCADE, related_name='exam', null=True, blank=True) 
     title = models.CharField(max_length=200)
     questions = models.ManyToManyField(Question, through='ExamQuestion')

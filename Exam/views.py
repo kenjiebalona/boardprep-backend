@@ -183,57 +183,6 @@ class ExamViewSet(viewsets.ModelViewSet):
         ]
         return failed_lessons
         
-    @action(detail=True, methods=['post'])
-    def submit_exam(self, request, pk=None):
-        exam = self.get_object()
-        student = request.user.student
-        
-        # Process exam submission
-        score = self.calculate_score(request.data['answers'])
-        passed = score >= exam.passing_score
-        
-        # Create StudentExamAttempt
-        attempt = StudentExamAttempt.objects.create(
-            student=student,
-            exam=exam,
-            score=score,
-            passed=passed
-        )
-        
-        if not passed:
-            # Reset progress for failed lessons
-            failed_lessons = self.get_failed_lessons(request.data['answers'])
-            StudentLessonProgress.objects.filter(
-                student=student,
-                lesson__in=failed_lessons
-            ).update(is_completed=False)
-        
-        serializer = StudentExamAttemptSerializer(attempt)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    def calculate_score(self, answers):
-        correct_answers = sum(1 for answer in answers if answer['is_correct'])
-        return correct_answers / len(answers)
-
-    def get_failed_lessons(self, answers):
-        # Group answers by lesson and calculate score for each lesson
-        lesson_scores = {}
-        for answer in answers:
-            lesson = answer['question'].quiz.lesson
-            if lesson not in lesson_scores:
-                lesson_scores[lesson] = {'correct': 0, 'total': 0}
-            lesson_scores[lesson]['total'] += 1
-            if answer['is_correct']:
-                lesson_scores[lesson]['correct'] += 1
-        
-        # Identify lessons with score below 75%
-        failed_lessons = [
-            lesson for lesson, scores in lesson_scores.items()
-            if scores['correct'] / scores['total'] < 0.75
-        ]
-        return failed_lessons
-
-
 class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     queryset = StudentExamAttempt.objects.all()
     serializer_class = StudentExamAttemptSerializer
