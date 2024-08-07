@@ -11,7 +11,7 @@ from .models import Exam, ExamQuestion
 from django.contrib.auth.hashers import make_password
 from datetime import date
 from django.db.models import Count, Avg
-
+#python manage.py test Exam.tests
 class AdaptiveExamTest(TestCase):
     def setUp(self):
         # Create necessary objects
@@ -50,12 +50,12 @@ class AdaptiveExamTest(TestCase):
         for i in range(5):
             lesson = Lesson.objects.create(syllabus=self.syllabus, lesson_id=f'L{i+1}', lesson_title=f'Lesson {i+1}', order=i+1)
             self.lessons.append(lesson)
-            quiz = Quiz.objects.create(topic=lesson, title=f'Quiz {i+1}')
+            quiz = Quiz.objects.create(lesson=lesson, title=f'Quiz {i+1}')
             self.quizzes.append(quiz)
             for j in range(100):  # Create 100 questions per lesson to ensure enough questions
                 difficulty = (j % 3) + 1  # Distribute difficulties evenly
                 question = Question.objects.create(
-                    topic=lesson, 
+                    lesson=lesson, 
                     text=f'Question {j+1} for Lesson {i+1}',
                     difficulty=difficulty
                 )

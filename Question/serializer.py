@@ -15,7 +15,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = ['id', 'topic', 'text', 'difficulty', 'choices']
+        fields = ['id', 'lesson', 'text', 'difficulty', 'choices']
 
     def create(self, validated_data):
         choices_data = validated_data.pop('choices')

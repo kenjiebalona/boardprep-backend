@@ -13,7 +13,7 @@ from openai import OpenAI
 import os, environ
 from django.db.models import Avg
 
-#python manage.py test Exam.tests
+
 
 # Create your views here.
 class ExamViewSet(viewsets.ModelViewSet):
@@ -60,6 +60,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def generate_adaptive_exam(self, request, pk=None):
+
         exam = self.get_object()
         student = request.user.student
         quiz_attempts = StudentQuizAttempt.objects.filter(student=student)
@@ -80,12 +81,12 @@ class ExamViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
     def _calculate_question_counts(self, quiz_attempts):
-        total_lessons = quiz_attempts.values('quiz__topic').distinct().count()
+        total_lessons = quiz_attempts.values('quiz__lesson').distinct().count()
         avg_questions_per_lesson = 100 / total_lessons
         question_counts = {}
 
         for attempt in quiz_attempts:
-            lesson = attempt.quiz.topic
+            lesson = attempt.quiz.lesson
             weight = self._get_weight(attempt.score)
             count = max(1, int(avg_questions_per_lesson * weight))
             question_counts[lesson.lesson_id] = count
@@ -125,7 +126,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             lesson_questions = 0
             for difficulty, proportion in difficulty_distribution[lesson_id].items():
                 diff_count = int(count * proportion)
-                questions = Question.objects.filter(topic_id=lesson_id, difficulty=difficulty).order_by('?')[:diff_count]
+                questions = Question.objects.filter(lesson_id=lesson_id, difficulty=difficulty).order_by('?')[:diff_count]
                 for question in questions:
                     ExamQuestion.objects.create(exam=exam, question=question)
                 lesson_questions += questions.count()
@@ -168,7 +169,57 @@ class ExamViewSet(viewsets.ModelViewSet):
         # Group answers by lesson and calculate score for each lesson
         lesson_scores = {}
         for answer in answers:
-            lesson = answer['question'].quiz.topic
+            lesson = answer['question'].quiz.lesson
+            if lesson not in lesson_scores:
+                lesson_scores[lesson] = {'correct': 0, 'total': 0}
+            lesson_scores[lesson]['total'] += 1
+            if answer['is_correct']:
+                lesson_scores[lesson]['correct'] += 1
+        
+        # Identify lessons with score below 75%
+        failed_lessons = [
+            lesson for lesson, scores in lesson_scores.items()
+            if scores['correct'] / scores['total'] < 0.75
+        ]
+        return failed_lessons
+        
+    @action(detail=True, methods=['post'])
+    def submit_exam(self, request, pk=None):
+        exam = self.get_object()
+        student = request.user.student
+        
+        # Process exam submission
+        score = self.calculate_score(request.data['answers'])
+        passed = score >= exam.passing_score
+        
+        # Create StudentExamAttempt
+        attempt = StudentExamAttempt.objects.create(
+            student=student,
+            exam=exam,
+            score=score,
+            passed=passed
+        )
+        
+        if not passed:
+            # Reset progress for failed lessons
+            failed_lessons = self.get_failed_lessons(request.data['answers'])
+            StudentLessonProgress.objects.filter(
+                student=student,
+                lesson__in=failed_lessons
+            ).update(is_completed=False)
+        
+        serializer = StudentExamAttemptSerializer(attempt)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def calculate_score(self, answers):
+        correct_answers = sum(1 for answer in answers if answer['is_correct'])
+        return correct_answers / len(answers)
+
+    def get_failed_lessons(self, answers):
+        # Group answers by lesson and calculate score for each lesson
+        lesson_scores = {}
+        for answer in answers:
+            lesson = answer['question'].quiz.lesson
             if lesson not in lesson_scores:
                 lesson_scores[lesson] = {'correct': 0, 'total': 0}
             lesson_scores[lesson]['total'] += 1
@@ -228,14 +279,14 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
                 paragraph = "I got all the questions correct.\n"
         for answer in answers:
             question_text = answer.question.text
-            topic = answer.question.topic
+            lesson = answer.question.lesson
             correct_choice = Choice.objects.filter(question=answer.question, is_correct=True).first()
             correct_answer_text = correct_choice.text if correct_choice else "Not available"
             selected_choice_text = answer.selected_choice.text
             paragraph += f"Question: {question_text}\n"
             if field == 'wrong':
                 paragraph += f"Correct Answer: {correct_answer_text}"
-            paragraph += f"Selected Answer: {selected_choice_text}\nTopic: {topic}\n"
+            paragraph += f"Selected Answer: {selected_choice_text}\Lesson: {lesson}\n"
         return paragraph
 
     def generate_feedback(self, student_name, specialization_name, correct_answers_paragraph, wrong_answers_paragraph):

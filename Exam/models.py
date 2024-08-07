@@ -2,7 +2,7 @@ from django.db import models
 from django.utils import timezone
 
 from Course.models import Lesson, StudentLessonProgress
-from Question.models import Question, StudentAnswer
+from Question.models import Question, QuestionGenerator, StudentAnswer
 
 
 # Create your models here.
@@ -22,7 +22,7 @@ class Exam(QuestionGenerator):
         student_answers = StudentAnswer.objects.filter(exam_attempt=student_exam_attempt)
         
         for answer in student_answers:
-            lesson = answer.question.quiz.topic
+            lesson = answer.question.quiz.lesson
             if lesson not in lesson_scores:
                 lesson_scores[lesson] = {'correct': 0, 'total': 0}
             

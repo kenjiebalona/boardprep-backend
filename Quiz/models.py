@@ -9,7 +9,7 @@ from Question.models import StudentAnswer
 # Create your models here.
 class Quiz(QuestionGenerator):
     id = models.AutoField(primary_key=True)
-    topic = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
+    lesson = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     questions = models.ManyToManyField('Question.Question')
     passing_score = models.FloatField(default=0.75)
@@ -18,7 +18,7 @@ class Quiz(QuestionGenerator):
         return self.title
 
     def generate_questions(self, num_easy, num_medium, num_hard):
-        filter_by = {'topic': self.topic}
+        filter_by = {'lesson': self.lesson}
         return super().generate_questions(num_easy, num_medium, num_hard, filter_by)
 
 

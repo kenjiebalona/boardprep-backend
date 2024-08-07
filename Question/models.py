@@ -5,7 +5,7 @@ import random
 # Create your models here.
 class Question(models.Model):
     id = models.AutoField(primary_key=True)
-    topic = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
+    lesson = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
     text = models.TextField()
     difficulty = models.IntegerField(choices=[(1, 'Easy'), (2, 'Medium'), (3, 'Hard')])
 
