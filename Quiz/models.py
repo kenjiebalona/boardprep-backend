@@ -13,6 +13,7 @@ class Quiz(QuestionGenerator):
     title = models.CharField(max_length=200)
     questions = models.ManyToManyField('Question.Question')
     passing_score = models.FloatField(default=0.75)
+    is_locked = models.BooleanField(default=True)
 
     def __str__(self):
         return self.title
