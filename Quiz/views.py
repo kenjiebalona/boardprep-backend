@@ -29,6 +29,17 @@ class QuizViewSet(viewsets.ModelViewSet):
             return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        student_id = self.request.query_params.get('student_id')
+        lesson_id = self.request.query_params.get('lesson_id')
+
+        if student_id and lesson_id:
+            queryset = queryset.filter(student_id=student_id, lesson_id=lesson_id)
+        else:
+            queryset = queryset.none()
+        return queryset
+
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()

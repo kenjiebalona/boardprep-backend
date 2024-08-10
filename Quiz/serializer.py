@@ -9,7 +9,7 @@ class QuizSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Quiz
-        fields = ['id', 'lesson', 'title', 'questions']
+        fields = ['id', 'student', 'lesson', 'title', 'questions']
 
 
 class StudentQuizAttemptSerializer(serializers.ModelSerializer):
@@ -18,7 +18,7 @@ class StudentQuizAttemptSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StudentQuizAttempt
-        fields = ['id', 'student', 'quiz', 'score', 'total_questions', 'start_time', 'end_time']
+        fields = ['id', 'quiz', 'score', 'total_questions', 'start_time', 'end_time']
 
     def validate(self, data):
         return data
