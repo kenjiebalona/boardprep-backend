@@ -5,9 +5,17 @@ from Course.models import Lesson
 from .models import Question, Choice, StudentAnswer
 
 class ChoiceSerializer(serializers.ModelSerializer):
+    is_correct = serializers.BooleanField(write_only=True)
+
     class Meta:
         model = Choice
-        fields = ['id', 'text']
+        fields = ['id', 'text', 'is_correct']
+
+    def __init__(self, *args, **kwargs):
+        super(ChoiceSerializer, self).__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and request.method in ['GET']:
+            self.fields.pop('is_correct')
 
 class QuestionSerializer(serializers.ModelSerializer):
     choices = ChoiceSerializer(many=True)
