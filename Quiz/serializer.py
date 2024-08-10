@@ -14,7 +14,6 @@ class QuizSerializer(serializers.ModelSerializer):
 
 class StudentQuizAttemptSerializer(serializers.ModelSerializer):
     quiz = serializers.PrimaryKeyRelatedField(queryset=Quiz.objects.all())
-    student = serializers.PrimaryKeyRelatedField(queryset=Student.objects.all())
 
     class Meta:
         model = StudentQuizAttempt

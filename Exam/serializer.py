@@ -14,7 +14,6 @@ class ExamSerializer(serializers.ModelSerializer):
 
 class StudentExamAttemptSerializer(serializers.ModelSerializer):
     exam = serializers.PrimaryKeyRelatedField(queryset=Exam.objects.all())
-    student = serializers.PrimaryKeyRelatedField(queryset=Student.objects.all())
 
     class Meta:
         model = StudentExamAttempt

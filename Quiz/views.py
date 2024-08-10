@@ -64,6 +64,16 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
     queryset = StudentQuizAttempt.objects.all()
     serializer_class = StudentQuizAttemptSerializer
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        quiz_id = self.request.query_params.get('quiz_id')
+
+        if quiz_id:
+            queryset = queryset.filter(quiz_id=quiz_id)
+        else:
+            queryset = queryset.none()
+        return queryset
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
