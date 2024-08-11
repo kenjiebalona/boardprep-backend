@@ -3,6 +3,8 @@ from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+
+from Question.models import StudentAnswer
 from .models import Challenge, StudentChallengeAttempt
 from .serializer import ChallengeSerializer, StudentChallengeAttemptSerializer
 
@@ -35,6 +37,34 @@ class ChallengeViewSet(viewsets.ModelViewSet):
 class StudentChallengeAttemptViewSet(viewsets.ModelViewSet):
     queryset = StudentChallengeAttempt.objects.all()
     serializer_class = StudentChallengeAttemptSerializer
+
+    @action(detail=False, methods=['post'])
+    def calculate_score(self, request):
+        attempt_id = request.data.get('attempt_id')
+        if not attempt_id:
+            return Response({"detail": "attempt_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            attempt = StudentChallengeAttempt.objects.get(id=attempt_id)
+        except StudentChallengeAttempt.DoesNotExist:
+            return Response({"detail": "Challenge attempt not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        correct_answers_count = StudentAnswer.objects.filter(
+            challenge_attempt=attempt,
+            is_correct=True
+        ).count()
+
+        attempt.score = correct_answers_count
+        attempt.end_time = timezone.now()
+
+        attempt.save()
+
+        time_taken = attempt.end_time - attempt.start_time
+
+        return Response({
+            'score': attempt.score,
+            'time_taken': str(time_taken)
+        }, status=status.HTTP_200_OK)
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
