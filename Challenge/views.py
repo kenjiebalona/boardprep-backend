@@ -63,6 +63,7 @@ class StudentChallengeAttemptViewSet(viewsets.ModelViewSet):
 
         return Response({
             'score': attempt.score,
+            'total_questions': attempt.total_questions,
             'time_taken': str(time_taken)
         }, status=status.HTTP_200_OK)
 

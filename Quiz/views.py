@@ -107,6 +107,7 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
 
         return Response({
             'score': attempt.score,
+            'total_questions': attempt.total_questions,
             'passed': attempt.passed,
             'time_taken': str(time_taken)
         }, status=status.HTTP_200_OK)
