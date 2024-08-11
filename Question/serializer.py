@@ -72,6 +72,15 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 
 class StudentAnswerSerializer(serializers.ModelSerializer):
+    is_correct = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = StudentAnswer
         fields = '__all__'
+
+    def create(self, validated_data):
+        selected_choice = validated_data.get('selected_choice')
+        question = validated_data.get('question')
+        is_correct = selected_choice.is_correct
+        student_answer = StudentAnswer.objects.create(is_correct=is_correct, **validated_data)
+        return student_answer

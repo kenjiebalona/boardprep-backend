@@ -34,7 +34,7 @@ class StudentQuizAttempt(models.Model):
     passed = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.student} - {self.quiz} - {self.score}"
+        return f"{self.quiz} - {self.score}"
     
     def mark_lesson_completed(self):
         if self.passed:
