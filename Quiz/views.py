@@ -1,7 +1,9 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from Question.models import StudentAnswer
 from Quiz.models import Quiz, StudentQuizAttempt
 from Quiz.serializer import QuizSerializer, StudentQuizAttemptSerializer
 
@@ -73,6 +75,28 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
         else:
             queryset = queryset.none()
         return queryset
+
+    @action(detail=False, methods=['post'])
+    def calculate_score(self, request):
+        attempt_id = request.data.get('attempt_id')
+
+        if not attempt_id:
+            return Response({"error": "Attempt ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            attempt = StudentQuizAttempt.objects.get(id=attempt_id)
+        except StudentQuizAttempt.DoesNotExist:
+            return Response({"error": "Attempt not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        correct_answers_count = StudentAnswer.objects.filter(
+            quiz_attempt=attempt,
+            is_correct=True
+        ).count()
+
+        attempt.score = correct_answers_count
+        attempt.save()
+
+        return Response({'score': attempt.score}, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
