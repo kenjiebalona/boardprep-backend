@@ -103,10 +103,13 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
 
         attempt.save()
 
+        time_taken = attempt.end_time - attempt.start_time
+
         return Response({
             'score': attempt.score,
+            'total_questions': attempt.total_questions,
             'passed': attempt.passed,
-            'end_time': attempt.end_time
+            'time_taken': str(time_taken)
         }, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
