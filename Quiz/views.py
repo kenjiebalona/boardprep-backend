@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -79,14 +80,13 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def calculate_score(self, request):
         attempt_id = request.data.get('attempt_id')
-
         if not attempt_id:
-            return Response({"error": "Attempt ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "attempt_id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             attempt = StudentQuizAttempt.objects.get(id=attempt_id)
         except StudentQuizAttempt.DoesNotExist:
-            return Response({"error": "Attempt not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Quiz attempt not found."}, status=status.HTTP_404_NOT_FOUND)
 
         correct_answers_count = StudentAnswer.objects.filter(
             quiz_attempt=attempt,
@@ -94,9 +94,20 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
         ).count()
 
         attempt.score = correct_answers_count
+        attempt.end_time = timezone.now()
+
+        total_questions = attempt.total_questions
+        passing_score = attempt.quiz.passing_score
+        passed = (correct_answers_count / total_questions) >= passing_score
+        attempt.passed = passed
+
         attempt.save()
 
-        return Response({'score': attempt.score}, status=status.HTTP_200_OK)
+        return Response({
+            'score': attempt.score,
+            'passed': attempt.passed,
+            'end_time': attempt.end_time
+        }, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
