@@ -37,7 +37,6 @@ class LessonSerializer(serializers.ModelSerializer):
                 lesson.save()
 
         lesson = Lesson.objects.create(lesson_id=lesson_id, **validated_data)
-        Quiz.objects.create(lesson=lesson, title=f"Quiz {lesson.order}")  # Create Quiz for the lesson
         return lesson
 
     def to_representation(self, instance):
