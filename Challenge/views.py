@@ -1,3 +1,4 @@
+from django.db.models import ExpressionWrapper, F, FloatField
 from django.shortcuts import render
 from django.utils import timezone
 from rest_framework import viewsets, status
@@ -27,6 +28,47 @@ class ChallengeViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(challenge)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def leaderboards(self, request):
+        student_id = request.query_params.get('student_id')
+        if not student_id:
+            return Response({"detail": "student_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        today = timezone.now().date()
+        challenge = Challenge.objects.filter(date=today).first()
+
+        if not challenge:
+            return Response({"detail": "No challenge found for today."}, status=status.HTTP_404_NOT_FOUND)
+
+        all_attempts = StudentChallengeAttempt.objects.filter(daily_challenge=challenge).annotate(
+            time_taken=ExpressionWrapper(F('end_time') - F('start_time'), output_field=FloatField())
+        ).order_by('-score', 'time_taken')
+
+        leaderboard_data = []
+        student_data = None
+
+        for rank, attempt in enumerate(all_attempts, start=1):
+            attempt_data = {
+                'ranking': rank,
+                'student_id': attempt.student.id,
+                'score': attempt.score,
+                'time_taken': str(attempt.time_taken)
+            }
+
+            if str(attempt.student.id) == student_id:
+                student_data = attempt_data
+
+            if rank <= 10:
+                leaderboard_data.append(attempt_data)
+
+            if rank >= 10 and student_data:
+                break
+
+        return Response({
+            'leaderboard': leaderboard_data,
+            'student': student_data
+        }, status=status.HTTP_200_OK)
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
