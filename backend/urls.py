@@ -23,7 +23,6 @@ router.register(r'lessons', LessonViewSet, basename='lesson')
 router.register(r'pages', PageViewSet, basename='pages')
 router.register(r'file-upload', FileUploadViewSet, basename='fileupload')
 router.register(r'classes', ClassViewSet, basename='class')
-# Other viewsets that need basename
 router.register(r'posts', PostViewSet, basename='posts')
 router.register(r'comments', CommentViewSet, basename='comments')
 router.register(r'student', StudentViewSet, basename='student')
@@ -71,6 +70,10 @@ urlpatterns = [
     path('student-lesson-progress/by-student-and-course/', StudentLessonProgressViewSet.as_view({'get': 'by_student_and_course'}), name='student-lesson-progress-by-student-and-course'),
     path('student-course-progress/by-student/', StudentCourseProgressViewSet.as_view({'get': 'by_student'}), name='student-course-progress-by-student'),
     path('exams/<int:pk>/generate_adaptive_exam/', ExamViewSet.as_view({'post': 'generate_adaptive_exam'}), name='exam-generate-adaptive-exam'),
+    path('exams/<int:pk>/detailed-results/', ExamViewSet.as_view({'get': 'detailed_results'}), name='exam-detailed-results'),
+    path('exams/<int:pk>/student-performance/', ExamViewSet.as_view({'get': 'student_performance'}), name='exam-student-performance'),
+    path('exams/<int:pk>/overall-performance/', ExamViewSet.as_view({'get': 'overall_performance'}), name='exam-overall-performance'),
+    path('exams/<int:pk>/submit/', ExamViewSet.as_view({'post': 'submit_exam'}), name='exam-submit'),
 
 ]
 

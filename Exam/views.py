@@ -6,12 +6,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from Question.models import Question, StudentAnswer, Choice
+from Question.serializer import QuestionSerializer
 from Quiz.models import StudentQuizAttempt
 from .models import Exam, ExamQuestion, StudentExamAttempt
 from .serializer import ExamSerializer, StudentExamAttemptSerializer
 from openai import OpenAI
 import os, environ
-from django.db.models import Avg
+from django.db.models import Avg, Max, Min, Count
 
 
 
@@ -182,6 +183,62 @@ class ExamViewSet(viewsets.ModelViewSet):
             if scores['correct'] / scores['total'] < 0.75
         ]
         return failed_lessons
+    
+    @action(detail=True, methods=['get'])
+    def detailed_results(self, request, pk=None):
+        exam = self.get_object()
+        student = request.user.student
+        attempt = StudentExamAttempt.objects.filter(exam=exam, student=student).latest('start_time')
+        
+        if not attempt:
+            return Response({"detail": "No attempt found for this exam."}, status=status.HTTP_404_NOT_FOUND)
+        
+        questions = exam.questions.all()
+        results = []
+        
+        for question in questions:
+            answer = StudentAnswer.objects.filter(exam_attempt=attempt, question=question).first()
+            question_data = QuestionSerializer(question).data
+            question_data['student_answer'] = answer.selected_choice.text if answer else None
+            question_data['is_correct'] = answer.is_correct if answer else False
+            question_data['correct_answer'] = question.choices.filter(is_correct=True).first().text
+            question_data['explanation'] = question.explanation
+            results.append(question_data)
+        
+        return Response({
+            "exam_title": exam.title,
+            "score": attempt.score,
+            "total_questions": len(questions),
+            "results": results
+        })
+        
+    @action(detail=True, methods=['get'])
+    def student_performance(self, request, pk=None):
+        exam = self.get_object()
+        student = request.user.student
+        attempts = StudentExamAttempt.objects.filter(exam=exam, student=student)
+        
+        return Response({
+            "exam_title": exam.title,
+            "attempts_count": attempts.count(),
+            "average_score": attempts.aggregate(Avg('score'))['score__avg'],
+            "highest_score": attempts.aggregate(Max('score'))['score__max'],
+            "lowest_score": attempts.aggregate(Min('score'))['score__min'],
+        })
+
+    @action(detail=True, methods=['get'])
+    def overall_performance(self, request, pk=None):
+        exam = self.get_object()
+        attempts = StudentExamAttempt.objects.filter(exam=exam)
+        
+        return Response({
+            "exam_title": exam.title,
+            "total_attempts": attempts.count(),
+            "average_score": attempts.aggregate(Avg('score'))['score__avg'],
+            "highest_score": attempts.aggregate(Max('score'))['score__max'],
+            "lowest_score": attempts.aggregate(Min('score'))['score__min'],
+            "score_distribution": list(attempts.values('score').annotate(count=Count('score')).order_by('score')),
+        })
         
 class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     queryset = StudentExamAttempt.objects.all()
