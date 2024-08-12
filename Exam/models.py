@@ -8,6 +8,7 @@ class Exam(QuestionGenerator):
     id = models.AutoField(primary_key=True)
     course = models.OneToOneField('Course.Course', on_delete=models.CASCADE, related_name='exam', null=True, blank=True)
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
+    class_instance = models.ForeignKey('Class.Class', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     questions = models.ManyToManyField(Question, through='ExamQuestion')
     passing_score = models.FloatField(default=0.75)

@@ -9,7 +9,7 @@ class ExamSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Exam
-        fields = ['id', 'student', 'course', 'title', 'questions']
+        fields = ['id', 'student', 'class_instance', 'course', 'title', 'questions']
 
 
 class StudentExamAttemptSerializer(serializers.ModelSerializer):
