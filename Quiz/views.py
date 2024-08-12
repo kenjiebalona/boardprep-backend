@@ -32,6 +32,45 @@ class QuizViewSet(viewsets.ModelViewSet):
             return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['get'], url_path='class')
+    def get_by_lesson_and_class(self, request, *args, **kwargs):
+        lesson_id = request.query_params.get('lesson_id')
+        class_id = request.query_params.get('class_id')
+
+        if not lesson_id or not class_id:
+            return Response(
+                {"detail": "Both 'lesson_id' and 'class_instance_id' query parameters are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        quizzes = self.queryset.filter(lesson_id=lesson_id, class_instance_id=class_id)
+
+        best_attempts = {}
+
+        for quiz in quizzes:
+            student_quiz_attempts = StudentQuizAttempt.objects.filter(quiz=quiz)
+
+            for attempt in student_quiz_attempts:
+                key = (quiz.student_id, quiz.lesson_id)
+                current_best_score = best_attempts.get(key).score if key in best_attempts else None
+                if current_best_score is None or (attempt.score is not None and attempt.score > current_best_score):
+                    best_attempts[key] = attempt
+
+        result = []
+        for (student_id, lesson_id), attempt in best_attempts.items():
+            result.append({
+                'student_id': attempt.quiz.student.user_name,
+                'quiz_id': attempt.quiz.id,
+                'lesson': attempt.quiz.lesson.lesson_id,
+                'score': attempt.score,
+                'total_questions': attempt.total_questions,
+                'start_time': attempt.start_time,
+                'end_time': attempt.end_time,
+                'passed': attempt.passed,
+            })
+
+        return Response(result, status=status.HTTP_200_OK)
+
     def get_queryset(self):
         queryset = super().get_queryset()
         student_id = self.request.query_params.get('student_id')
