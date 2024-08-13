@@ -51,12 +51,12 @@ class ChallengeViewSet(viewsets.ModelViewSet):
         for rank, attempt in enumerate(all_attempts, start=1):
             attempt_data = {
                 'ranking': rank,
-                'student_id': attempt.student.id,
+                'student_id': attempt.student.user_name,
                 'score': attempt.score,
                 'time_taken': str(attempt.time_taken)
             }
 
-            if str(attempt.student.id) == student_id:
+            if str(attempt.student.user_name) == student_id:
                 student_data = attempt_data
 
             if rank <= 10:
@@ -87,7 +87,7 @@ class StudentChallengeAttemptViewSet(viewsets.ModelViewSet):
             return Response({"detail": "attempt_id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            attempt = StudentChallengeAttempt.objects.get(id=attempt_id)
+            attempt = StudentChallengeAttempt.objects.get(leaderboardID=attempt_id)
         except StudentChallengeAttempt.DoesNotExist:
             return Response({"detail": "Challenge attempt not found."}, status=status.HTTP_404_NOT_FOUND)
 
