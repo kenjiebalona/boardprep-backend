@@ -162,6 +162,45 @@ class ExamViewSet(viewsets.ModelViewSet):
         serializer = StudentExamAttemptSerializer(attempt)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['get'], url_path='class')
+    def get_by_course_and_class(self, request, *args, **kwargs):
+        course_id = request.query_params.get('course_id')
+        class_id = request.query_params.get('class_id')
+
+        if not course_id or not class_id:
+            return Response(
+                {"detail": "Both 'lesson_id' and 'class_id' query parameters are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        exams = self.queryset.filter(course_id=course_id, class_instance_id=class_id)
+
+        best_attempts = {}
+
+        for exam in exams:
+            student_exam_attempts = StudentExamAttempt.objects.filter(exam=exam)
+
+            for attempt in student_exam_attempts:
+                key = (exam.student_id, exam.lesson_id)
+                current_best_score = best_attempts.get(key).score if key in best_attempts else None
+                if current_best_score is None or (attempt.score is not None and attempt.score > current_best_score):
+                    best_attempts[key] = attempt
+
+        result = []
+        for (student_id, course_id), attempt in best_attempts.items():
+            result.append({
+                'student': attempt.exam.student.first_name + " " + attempt.exam.student.last_name,
+                'quiz_id': attempt.exam.id,
+                'course': attempt.exam.course.course_id,
+                'score': attempt.score,
+                'total_questions': attempt.total_questions,
+                'start_time': attempt.start_time,
+                'end_time': attempt.end_time,
+                'passed': attempt.passed,
+            })
+
+        return Response(result, status=status.HTTP_200_OK)
+
     def calculate_score(self, answers):
         correct_answers = sum(1 for answer in answers if answer['is_correct'])
         return correct_answers / len(answers)

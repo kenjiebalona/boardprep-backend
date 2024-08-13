@@ -39,7 +39,7 @@ class QuizViewSet(viewsets.ModelViewSet):
 
         if not lesson_id or not class_id:
             return Response(
-                {"detail": "Both 'lesson_id' and 'class_instance_id' query parameters are required."},
+                {"detail": "Both 'lesson_id' and 'class_id' query parameters are required."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -59,7 +59,7 @@ class QuizViewSet(viewsets.ModelViewSet):
         result = []
         for (student_id, lesson_id), attempt in best_attempts.items():
             result.append({
-                'student_id': attempt.quiz.student.user_name,
+                'student': attempt.quiz.student.first_name + " " + attempt.quiz.student.last_name,
                 'quiz_id': attempt.quiz.id,
                 'lesson': attempt.quiz.lesson.lesson_id,
                 'score': attempt.score,
