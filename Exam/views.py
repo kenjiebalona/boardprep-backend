@@ -60,26 +60,50 @@ class ExamViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
     
     @action(detail=True, methods=['post'])
-    def generate_adaptive_exam(self, request, pk=None):
+    def generate_adaptive_exam(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            exam = serializer.save()
+            
+            # Generate adaptive exam questions
+            try:
+                student = request.user.student
+                quiz_attempts = StudentQuizAttempt.objects.filter(student=student)
 
-        exam = self.get_object()
-        student = request.user.student
-        quiz_attempts = StudentQuizAttempt.objects.filter(student=student)
-        
-        question_counts = self._calculate_question_counts(quiz_attempts)
-        difficulty_distribution = self._get_difficulty_distribution()
-        
-        self._select_questions(exam, question_counts, difficulty_distribution)
-        
-        exam_questions = ExamQuestion.objects.filter(exam=exam)
-        avg_difficulty = exam_questions.aggregate(Avg('question__difficulty'))['question__difficulty__avg']
-        
-        return Response({
-            'status': 'Adaptive exam generated',
-            'questions': list(exam_questions.values_list('id', flat=True)),
-            'question_distribution': question_counts,
-            'average_difficulty': avg_difficulty
-        }, status=status.HTTP_200_OK)
+                question_counts = self._calculate_question_counts(quiz_attempts)
+                difficulty_distribution = self._get_difficulty_distribution()
+
+                self._select_questions(exam, question_counts, difficulty_distribution)
+                
+                exam_questions = ExamQuestion.objects.filter(exam=exam)
+                avg_difficulty = exam_questions.aggregate(Avg('question__difficulty'))['question__difficulty__avg']
+
+                # Attach the questions to the exam
+                exam.questions.set([eq.question for eq in exam_questions])
+                exam.save()
+
+                response_data = self.get_serializer(exam).data
+                response_data.update({
+                    'exam_id': exam.id,
+                    'status': 'Adaptive exam generated',
+                    'question_distribution': question_counts,
+                    'average_difficulty': avg_difficulty
+                })
+                headers = self.get_success_headers(response_data)
+                return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+
+            except ValueError as e:
+                exam.delete()
+                return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # return Response({
+        #     'status': 'Adaptive exam generated',
+        #     'questions': list(exam_questions.values_list('id', flat=True)),
+        #     'question_distribution': question_counts,
+        #     'average_difficulty': avg_difficulty
+        # }, status=status.HTTP_200_OK)
 
     def _calculate_question_counts(self, quiz_attempts):
         total_lessons = quiz_attempts.values('quiz__lesson').distinct().count()
