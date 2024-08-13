@@ -201,6 +201,73 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], url_path='analytics')
+    def get_exam_analytics(self, request, *args, **kwargs):
+        exam_id = request.query_params.get('exam_id')
+
+        if not exam_id:
+            return Response(
+                {"detail": "'exam_id' query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            exam = Exam.objects.get(id=exam_id)
+        except Exam.DoesNotExist:
+            return Response(
+                {"detail": "Exam not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        student_attempts = StudentExamAttempt.objects.filter(exam=exam)
+
+        result = []
+
+        for attempt in student_attempts:
+            student_name = f"{attempt.exam.student.first_name} {attempt.exam.student.last_name}"
+
+            difficulty_data = {
+                "easy": 0,
+                "medium": 0,
+                "hard": 0,
+                "easy_correct": 0,
+                "medium_correct": 0,
+                "hard_correct": 0
+            }
+
+            lesson_data = {}
+
+            student_answers = StudentAnswer.objects.filter(exam_attempt=attempt)
+
+            for answer in student_answers:
+                difficulty = answer.question.get_difficulty_display().lower()
+                lesson_name = answer.question.lesson.lesson_id
+
+                difficulty_data[difficulty] += 1
+                if answer.is_correct:
+                    difficulty_data[f"{difficulty}_correct"] += 1
+
+                if lesson_name not in lesson_data:
+                    lesson_data[lesson_name] = 0
+                    lesson_data[f"{lesson_name}_correct"] = 0
+                lesson_data[lesson_name] += 1
+                if answer.is_correct:
+                    lesson_data[f"{lesson_name}_correct"] += 1
+
+            result.append({
+                'student': student_name,
+                'exam_id': exam.id,
+                'score': attempt.score,
+                'total_questions': attempt.total_questions,
+                'start_time': attempt.start_time,
+                'end_time': attempt.end_time,
+                'passed': attempt.passed,
+                'difficulty': difficulty_data,
+                'lesson': lesson_data,
+            })
+
+        return Response(result, status=status.HTTP_200_OK)
+
     def calculate_score(self, answers):
         correct_answers = sum(1 for answer in answers if answer['is_correct'])
         return correct_answers / len(answers)
