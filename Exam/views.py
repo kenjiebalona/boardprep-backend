@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from Question.models import Question, StudentAnswer, Choice
 from Question.serializer import QuestionSerializer
 from Quiz.models import StudentQuizAttempt
+from User.models import Student
 from .models import Exam, ExamQuestion, StudentExamAttempt
 from .serializer import ExamSerializer, StudentExamAttemptSerializer
 from openai import OpenAI
@@ -15,8 +16,6 @@ import os, environ
 from django.db.models import Avg, Max, Min, Count
 
 
-
-# Create your views here.
 class ExamViewSet(viewsets.ModelViewSet):
     queryset = Exam.objects.all()
     serializer_class = ExamSerializer
@@ -40,48 +39,40 @@ class ExamViewSet(viewsets.ModelViewSet):
             return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        if serializer.is_valid():
-            self.perform_update(serializer)
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-    
-    @action(detail=True, methods=['post'])
+    @action(detail=False, methods=['post'])
     def generate_adaptive_exam(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            exam = serializer.save()
-            
-            # Generate adaptive exam questions
-            try:
-                student = request.user.student
-                quiz_attempts = StudentQuizAttempt.objects.filter(student=student)
+            student_id = request.data.get('student')
+            quiz_attempts = StudentQuizAttempt.objects.filter(quiz__student_id=student_id)
 
+            if not quiz_attempts.exists():
+                return Response({"detail": "No quiz attempts found for the student."}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                # Create the exam
+                exam = serializer.save()
+
+                # Calculate question counts
                 question_counts = self._calculate_question_counts(quiz_attempts)
+                if not question_counts:
+                    return Response({"detail": "No valid question counts calculated."}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Get difficulty distribution
                 difficulty_distribution = self._get_difficulty_distribution()
 
+                # Select and assign questions to the exam
                 self._select_questions(exam, question_counts, difficulty_distribution)
-                
+
+                # Retrieve selected questions
                 exam_questions = ExamQuestion.objects.filter(exam=exam)
                 avg_difficulty = exam_questions.aggregate(Avg('question__difficulty'))['question__difficulty__avg']
 
-                # Attach the questions to the exam
+                # Assign questions to the exam and save
                 exam.questions.set([eq.question for eq in exam_questions])
                 exam.save()
 
+                # Prepare the response data
                 response_data = self.get_serializer(exam).data
                 response_data.update({
                     'exam_id': exam.id,
@@ -98,15 +89,11 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # return Response({
-        #     'status': 'Adaptive exam generated',
-        #     'questions': list(exam_questions.values_list('id', flat=True)),
-        #     'question_distribution': question_counts,
-        #     'average_difficulty': avg_difficulty
-        # }, status=status.HTTP_200_OK)
-
     def _calculate_question_counts(self, quiz_attempts):
         total_lessons = quiz_attempts.values('quiz__lesson').distinct().count()
+        if total_lessons == 0:
+            return {}
+
         avg_questions_per_lesson = 100 / total_lessons
         question_counts = {}
 
@@ -119,6 +106,8 @@ class ExamViewSet(viewsets.ModelViewSet):
         return self._adjust_question_counts(question_counts)
 
     def _get_weight(self, score):
+        if score is None:
+            score = 0  # Assign a default value if score is None
         if score < 60:
             return 1.5
         elif score < 70:
@@ -129,9 +118,9 @@ class ExamViewSet(viewsets.ModelViewSet):
     def _adjust_question_counts(self, question_counts):
         total_questions = sum(question_counts.values())
         adjustment_factor = 100 / total_questions
-        
+
         adjusted_counts = {lesson_id: max(1, int(count * adjustment_factor)) for lesson_id, count in question_counts.items()}
-        
+
         # Ensure the total is exactly 100
         while sum(adjusted_counts.values()) != 100:
             if sum(adjusted_counts.values()) < 100:
@@ -155,26 +144,23 @@ class ExamViewSet(viewsets.ModelViewSet):
                 for question in questions:
                     ExamQuestion.objects.create(exam=exam, question=question)
                 lesson_questions += questions.count()
-            print(f"Lesson {lesson_id}: {lesson_questions} questions selected")
 
-        
     @action(detail=True, methods=['post'])
     def submit_exam(self, request, pk=None):
         exam = self.get_object()
         student = request.user.student
-        
+
         # Process exam submission
         score = self.calculate_score(request.data['answers'])
         passed = score >= exam.passing_score
-        
-        # Create StudentExamAttempt
-        attempt = StudentExamAttempt.objects.create(
+
+        # Create or update StudentExamAttempt
+        attempt, created = StudentExamAttempt.objects.update_or_create(
             student=student,
             exam=exam,
-            score=score,
-            passed=passed
+            defaults={'score': score, 'passed': passed}
         )
-        
+
         if not passed:
             # Reset progress for failed lessons
             failed_lessons = self.get_failed_lessons(request.data['answers'])
@@ -182,150 +168,42 @@ class ExamViewSet(viewsets.ModelViewSet):
                 student=student,
                 lesson__in=failed_lessons
             ).update(is_completed=False)
-        
+
         serializer = StudentExamAttemptSerializer(attempt)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=['get'], url_path='class')
-    def get_by_course_and_class(self, request, *args, **kwargs):
-        course_id = request.query_params.get('course_id')
-        class_id = request.query_params.get('class_id')
-
-        if not course_id or not class_id:
-            return Response(
-                {"detail": "Both 'lesson_id' and 'class_id' query parameters are required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        exams = self.queryset.filter(course_id=course_id, class_instance_id=class_id)
-
-        best_attempts = {}
-
-        for exam in exams:
-            student_exam_attempts = StudentExamAttempt.objects.filter(exam=exam)
-
-            for attempt in student_exam_attempts:
-                key = (exam.student_id, exam.lesson_id)
-                current_best_score = best_attempts.get(key).score if key in best_attempts else None
-                if current_best_score is None or (attempt.score is not None and attempt.score > current_best_score):
-                    best_attempts[key] = attempt
-
-        result = []
-        for (student_id, course_id), attempt in best_attempts.items():
-            result.append({
-                'student': attempt.exam.student.first_name + " " + attempt.exam.student.last_name,
-                'quiz_id': attempt.exam.id,
-                'course': attempt.exam.course.course_id,
-                'score': attempt.score,
-                'total_questions': attempt.total_questions,
-                'start_time': attempt.start_time,
-                'end_time': attempt.end_time,
-                'passed': attempt.passed,
-            })
-
-        return Response(result, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=['get'], url_path='analytics')
-    def get_exam_analytics(self, request, *args, **kwargs):
-        exam_id = request.query_params.get('exam_id')
-
-        if not exam_id:
-            return Response(
-                {"detail": "'exam_id' query parameter is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            exam = Exam.objects.get(id=exam_id)
-        except Exam.DoesNotExist:
-            return Response(
-                {"detail": "Exam not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        student_attempts = StudentExamAttempt.objects.filter(exam=exam)
-
-        result = []
-
-        for attempt in student_attempts:
-            student_name = f"{attempt.exam.student.first_name} {attempt.exam.student.last_name}"
-
-            difficulty_data = {
-                "easy": 0,
-                "medium": 0,
-                "hard": 0,
-                "easy_correct": 0,
-                "medium_correct": 0,
-                "hard_correct": 0
-            }
-
-            lesson_data = {}
-
-            student_answers = StudentAnswer.objects.filter(exam_attempt=attempt)
-
-            for answer in student_answers:
-                difficulty = answer.question.get_difficulty_display().lower()
-                lesson_name = answer.question.lesson.lesson_id
-
-                difficulty_data[difficulty] += 1
-                if answer.is_correct:
-                    difficulty_data[f"{difficulty}_correct"] += 1
-
-                if lesson_name not in lesson_data:
-                    lesson_data[lesson_name] = 0
-                    lesson_data[f"{lesson_name}_correct"] = 0
-                lesson_data[lesson_name] += 1
-                if answer.is_correct:
-                    lesson_data[f"{lesson_name}_correct"] += 1
-
-            result.append({
-                'student': student_name,
-                'exam_id': exam.id,
-                'score': attempt.score,
-                'total_questions': attempt.total_questions,
-                'start_time': attempt.start_time,
-                'end_time': attempt.end_time,
-                'passed': attempt.passed,
-                'difficulty': difficulty_data,
-                'lesson': lesson_data,
-            })
-
-        return Response(result, status=status.HTTP_200_OK)
 
     def calculate_score(self, answers):
         correct_answers = sum(1 for answer in answers if answer['is_correct'])
         return correct_answers / len(answers)
 
     def get_failed_lessons(self, answers):
-        # Group answers by lesson and calculate score for each lesson
         lesson_scores = {}
         for answer in answers:
-            lesson = answer['question'].quiz.lesson
+            lesson = answer['question'].lesson
             if lesson not in lesson_scores:
                 lesson_scores[lesson] = {'correct': 0, 'total': 0}
             lesson_scores[lesson]['total'] += 1
             if answer['is_correct']:
                 lesson_scores[lesson]['correct'] += 1
-        
-        # Identify lessons with score below 75%
+
         failed_lessons = [
             lesson for lesson, scores in lesson_scores.items()
             if scores['correct'] / scores['total'] < 0.75
         ]
         return failed_lessons
-    
+
     @action(detail=True, methods=['get'])
     def detailed_results(self, request, pk=None):
         exam = self.get_object()
         student = request.user.student
         attempt = StudentExamAttempt.objects.filter(exam=exam, student=student).latest('start_time')
-        
+
         if not attempt:
             return Response({"detail": "No attempt found for this exam."}, status=status.HTTP_404_NOT_FOUND)
-        
+
         questions = exam.questions.all()
         results = []
-        
+
         for question in questions:
             answer = StudentAnswer.objects.filter(exam_attempt=attempt, question=question).first()
             question_data = QuestionSerializer(question).data
@@ -334,20 +212,20 @@ class ExamViewSet(viewsets.ModelViewSet):
             question_data['correct_answer'] = question.choices.filter(is_correct=True).first().text
             question_data['explanation'] = question.explanation
             results.append(question_data)
-        
+
         return Response({
             "exam_title": exam.title,
             "score": attempt.score,
             "total_questions": len(questions),
             "results": results
         })
-        
+
     @action(detail=True, methods=['get'])
     def student_performance(self, request, pk=None):
         exam = self.get_object()
         student = request.user.student
         attempts = StudentExamAttempt.objects.filter(exam=exam, student=student)
-        
+
         return Response({
             "exam_title": exam.title,
             "attempts_count": attempts.count(),
@@ -360,7 +238,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     def overall_performance(self, request, pk=None):
         exam = self.get_object()
         attempts = StudentExamAttempt.objects.filter(exam=exam)
-        
+
         return Response({
             "exam_title": exam.title,
             "total_attempts": attempts.count(),
@@ -369,7 +247,44 @@ class ExamViewSet(viewsets.ModelViewSet):
             "lowest_score": attempts.aggregate(Min('score'))['score__min'],
             "score_distribution": list(attempts.values('score').annotate(count=Count('score')).order_by('score')),
         })
+
+    @action(detail=True, methods=['get'])
+    def get_failed_lessons(self, request, pk=None):
+        student_id = request.query_params.get('student_id')
+        exam = self.get_object()
+
+        attempt = StudentExamAttempt.objects.filter(student_id=student_id, exam=exam).order_by('-attempt_number').first()
+
+        if not attempt or attempt.passed:
+            return Response({"detail": "No failed lessons found."}, status=status.HTTP_404_NOT_FOUND)
+
+        failed_lessons = attempt.failed_lessons.all()
+        lesson_data = [{"lesson_id": lesson.id, "lesson_title": lesson.title} for lesson in failed_lessons]
+
+        return Response({"failed_lessons": lesson_data}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'])
+    def get_exam_questions(self, request, pk=None):
+        student_id = request.query_params.get('student_id')
+        exam = self.get_object()
+
+        attempt = StudentExamAttempt.objects.filter(student_id=student_id, exam=exam).order_by('-attempt_number').first()
+
+        if not attempt:
+            return Response({"detail": "No attempt found for this exam."}, status=status.HTTP_404_NOT_FOUND)
+
+        questions = attempt.exam.questions.all()
+        question_data = QuestionSerializer(questions, many=True).data
+
+        return Response({
+            "exam_title": exam.title,
+            "attempt_number": attempt.attempt_number,
+            "questions": question_data
+        }, status=status.HTTP_200_OK)
         
+    
+
+
 class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     queryset = StudentExamAttempt.objects.all()
     serializer_class = StudentExamAttemptSerializer
@@ -406,13 +321,11 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def create_answer_paragraph(self, answers, field):
-        if answers.__len__() > 0:
+        if answers.exists():
             paragraph = f"Here are the questions where I got the {field} answer:\n"
         else:
-            if field == 'correct':
-                paragraph = "I got all the questions wrong.\n"
-            else:
-                paragraph = "I got all the questions correct.\n"
+            paragraph = "I got all the questions wrong.\n" if field == 'wrong' else "I got all the questions correct.\n"
+
         for answer in answers:
             question_text = answer.question.text
             lesson = answer.question.lesson
@@ -422,16 +335,14 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             paragraph += f"Question: {question_text}\n"
             if field == 'wrong':
                 paragraph += f"Correct Answer: {correct_answer_text}"
-            paragraph += f"Selected Answer: {selected_choice_text}\Lesson: {lesson}\n"
+            paragraph += f"Selected Answer: {selected_choice_text}\nLesson: {lesson}\n"
         return paragraph
 
     def generate_feedback(self, student_name, specialization_name, correct_answers_paragraph, wrong_answers_paragraph):
         env = environ.Env(DEBUG=(bool, False))
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
-        client = OpenAI(
-            api_key=env('OPENAI_API_KEY'),
-        )
+        client = OpenAI(api_key=env('OPENAI_API_KEY'))
 
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -455,3 +366,36 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    def create_new_attempt(self, student, exam):
+        last_attempt = StudentExamAttempt.objects.filter(student=student, exam=exam).order_by('-attempt_number').first()
+        new_attempt_number = last_attempt.attempt_number + 1 if last_attempt else 1
+
+        new_attempt = StudentExamAttempt.objects.create(
+            student=student,
+            exam=exam,
+            attempt_number=new_attempt_number
+        )
+        return new_attempt
+    
+    @action(detail=False, methods=['post'])
+    def retake_exam(self, request, *args, **kwargs):
+        student_id = request.data.get('student_id')
+        exam_id = request.data.get('exam_id')
+
+        exam = get_object_or_404(Exam, id=exam_id)
+        student = get_object_or_404(Student, id=student_id)
+
+        last_attempt = StudentExamAttempt.objects.filter(student=student, exam=exam).order_by('-attempt_number').first()
+
+        if last_attempt and not last_attempt.passed:
+            new_attempt_number = (last_attempt.attempt_number or 0) + 1
+            new_attempt = StudentExamAttempt.objects.create(
+                student=student,
+                exam=exam,
+                attempt_number=new_attempt_number
+            )
+            return Response({"detail": "New exam attempt created.", "attempt_number": new_attempt.attempt_number})
+        else:
+            return Response({"detail": "Student has not failed any previous attempts."}, status=status.HTTP_400_BAD_REQUEST)
+

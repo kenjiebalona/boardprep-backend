@@ -10,8 +10,8 @@ from Institution.models import Institution
 from .models import Exam, ExamQuestion
 from django.contrib.auth.hashers import make_password
 from datetime import date
-from django.db.models import Count, Avg
-#python manage.py test Exam.tests
+from django.db.models import Count
+
 class AdaptiveExamTest(TestCase):
     def setUp(self):
         # Create necessary objects
@@ -50,7 +50,7 @@ class AdaptiveExamTest(TestCase):
         for i in range(5):
             lesson = Lesson.objects.create(syllabus=self.syllabus, lesson_id=f'L{i+1}', lesson_title=f'Lesson {i+1}', order=i+1)
             self.lessons.append(lesson)
-            quiz = Quiz.objects.create(lesson=lesson, title=f'Quiz {i+1}')
+            quiz = Quiz.objects.create(lesson=lesson, title=f'Quiz {i+1}', student=self.student)
             self.quizzes.append(quiz)
             for j in range(100):  # Create 100 questions per lesson to ensure enough questions
                 difficulty = (j % 3) + 1  # Distribute difficulties evenly
@@ -65,7 +65,6 @@ class AdaptiveExamTest(TestCase):
     def create_quiz_attempts(self, scores):
         for quiz, score in zip(self.quizzes, scores):
             StudentQuizAttempt.objects.create(
-                student=self.student,
                 quiz=quiz,
                 score=score,
                 total_questions=30
@@ -75,9 +74,9 @@ class AdaptiveExamTest(TestCase):
         self.create_quiz_attempts([55, 75, 90, 65, 85])
         self.client.force_authenticate(user=self.user)
         url = reverse('exam-generate-adaptive-exam', kwargs={'pk': self.exam.id})
-        response = self.client.post(url)
+        response = self.client.post(url, {'student_id': self.student.id})
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         exam_questions = ExamQuestion.objects.filter(exam=self.exam)
         question_count = exam_questions.count()
@@ -112,12 +111,12 @@ class AdaptiveExamTest(TestCase):
         url = reverse('exam-generate-adaptive-exam', kwargs={'pk': self.exam.id})
         
         # Generate exam twice
-        self.client.post(url)
+        self.client.post(url, {'student_id': self.student.id})
         first_questions = set(ExamQuestion.objects.filter(exam=self.exam).values_list('question_id', flat=True))
         
         ExamQuestion.objects.filter(exam=self.exam).delete()  # Clear existing questions
         
-        self.client.post(url)
+        self.client.post(url, {'student_id': self.student.id})
         second_questions = set(ExamQuestion.objects.filter(exam=self.exam).values_list('question_id', flat=True))
 
         # Check that the questions are different (or at least not all the same)

@@ -74,6 +74,9 @@ urlpatterns = [
     path('exams/<int:pk>/student-performance/', ExamViewSet.as_view({'get': 'student_performance'}), name='exam-student-performance'),
     path('exams/<int:pk>/overall-performance/', ExamViewSet.as_view({'get': 'overall_performance'}), name='exam-overall-performance'),
     path('exams/<int:pk>/submit/', ExamViewSet.as_view({'post': 'submit_exam'}), name='exam-submit'),
+    path('exams/<int:pk>/get-failed-lessons/', ExamViewSet.as_view({'get': 'get_failed_lessons'}), name='exam-get-failed-lessons'),
+    path('exams/<int:pk>/get-exam-questions/', ExamViewSet.as_view({'get': 'get_exam_questions'}), name='exam-get-exam-questions'),
+    path('studentExamAttempt/retake/', StudentExamAttemptViewSet.as_view({'post': 'retake_exam'}), name='student-exam-attempt-retake'),
 
 ]
 
