@@ -149,20 +149,18 @@ class ExamViewSet(viewsets.ModelViewSet):
     def submit_exam(self, request, pk=None):
         exam = self.get_object()
         student = request.user.student
-
         # Process exam submission
         score = self.calculate_score(request.data['answers'])
         passed = score >= exam.passing_score
-
+        if exam.student.user_name != student:
+            return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+        
         # Create or update StudentExamAttempt
         attempt, created = StudentExamAttempt.objects.update_or_create(
-            student=student,
             exam=exam,
             defaults={'score': score, 'passed': passed}
         )
-
         if not passed:
-            # Reset progress for failed lessons
             failed_lessons = self.get_failed_lessons(request.data['answers'])
             StudentLessonProgress.objects.filter(
                 student=student,
