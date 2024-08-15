@@ -148,7 +148,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def submit_exam(self, request, pk=None):
         exam = self.get_object()
-        student = request.user.student
+        student = request.data.get('student')
         # Process exam submission
         score = self.calculate_score(request.data['answers'])
         passed = score >= exam.passing_score
