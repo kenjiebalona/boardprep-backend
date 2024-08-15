@@ -1,5 +1,5 @@
 from collections import defaultdict
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from Course.models import StudentLessonProgress
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -152,8 +152,9 @@ class ExamViewSet(viewsets.ModelViewSet):
         print(student_id)
         if student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+        
         total_questions = exam.questions.count()
-        score = self.calculate_score(request.data['answers'])
+        score = self.calculate_score(request.data['answers'], exam)
         passed = score >= exam.passing_score
         attempt, created = StudentExamAttempt.objects.update_or_create(
             exam=exam,
@@ -170,9 +171,33 @@ class ExamViewSet(viewsets.ModelViewSet):
         serializer = StudentExamAttemptSerializer(attempt)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
-    def calculate_score(self, answers):
-        correct_answers = sum(1 for answer in answers if answer['is_correct'])
-        return correct_answers / len(answers)
+    def calculate_score(self, answers, exam):
+        correct_answers = 0
+        attempt, _ = StudentExamAttempt.objects.get_or_create(exam=exam)
+        for answer in answers:
+            question_id = answer.get('question_id')
+            selected_choice_id = answer.get('selected_choice_id')
+            print(selected_choice_id)
+            try:
+                question = Question.objects.get(id=question_id)
+                correct_choice = Choice.objects.get(question=question, is_correct=True)
+                print(correct_choice.id)
+                is_correct = (selected_choice_id == correct_choice.id)
+                print(is_correct)
+                if is_correct:
+                    correct_answers += 1
+                StudentAnswer.objects.create(
+                    exam_attempt=attempt,
+                    question=question,
+                    selected_choice_id=selected_choice_id,
+                    is_correct=is_correct,
+                    student=exam.student 
+                )
+            except Question.DoesNotExist:
+                continue 
+            except Choice.DoesNotExist:
+                continue  
+        return correct_answers 
 
     def calculate_failed_lessons(self, answers):
         lesson_scores = {}
