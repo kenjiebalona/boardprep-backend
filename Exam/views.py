@@ -1,5 +1,5 @@
 from collections import defaultdict
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 from Course.models import StudentLessonProgress
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -250,7 +250,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def get_failed_lessons(self, request, pk=None):
-        student_id = request.query_params.get('student')
+        student_id = request.query_params.get('student_id')
         exam = self.get_object()
 
         attempt = StudentExamAttempt.objects.filter(student_id=student_id, exam=exam).order_by('-attempt_number').first()
@@ -265,10 +265,12 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def get_exam_questions(self, request, pk=None):
-        student_id = request.query_params.get('student')
+        student_id = request.query_params.get('student_id')
+        print(student_id)
         exam = self.get_object()
-
-        attempt = StudentExamAttempt.objects.filter(student_id=student_id, exam=exam).order_by('-attempt_number').first()
+        if exam.student.user_name != student_id:
+            return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+        attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
 
         if not attempt:
             return Response({"detail": "No attempt found for this exam."}, status=status.HTTP_404_NOT_FOUND)
@@ -380,7 +382,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def retake_exam(self, request, *args, **kwargs):
-        student_id = request.data.get('student')
+        student_id = request.data.get('student_id')
         exam_id = request.data.get('exam_id')
 
         exam = get_object_or_404(Exam, id=exam_id)
