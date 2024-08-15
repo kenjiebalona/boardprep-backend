@@ -1,5 +1,5 @@
 from collections import defaultdict
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from Course.models import StudentLessonProgress
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -250,7 +250,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def get_failed_lessons(self, request, pk=None):
-        student_id = request.query_params.get('student_id')
+        student_id = request.query_params.get('student')
         exam = self.get_object()
 
         attempt = StudentExamAttempt.objects.filter(student_id=student_id, exam=exam).order_by('-attempt_number').first()
@@ -265,7 +265,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def get_exam_questions(self, request, pk=None):
-        student_id = request.query_params.get('student_id')
+        student_id = request.query_params.get('student')
         exam = self.get_object()
 
         attempt = StudentExamAttempt.objects.filter(student_id=student_id, exam=exam).order_by('-attempt_number').first()
@@ -380,7 +380,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def retake_exam(self, request, *args, **kwargs):
-        student_id = request.data.get('student_id')
+        student_id = request.data.get('student')
         exam_id = request.data.get('exam_id')
 
         exam = get_object_or_404(Exam, id=exam_id)
