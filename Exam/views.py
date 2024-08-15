@@ -287,7 +287,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         student_id = request.query_params.get('student_id')
         if exam.student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
-        attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').last()
+        attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
 
         if not attempt or attempt.passed:
             return Response({"detail": "No failed lessons found."}, status=status.HTTP_404_NOT_FOUND)
@@ -417,17 +417,16 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def retake_exam(self, request, *args, **kwargs):
         student_id = request.data.get('student_id')
-        exam_id = request.data.get('exam_id')
+        exam = request.data.get('exam_id')
 
-        exam = get_object_or_404(Exam, id=exam_id)
-        student = get_object_or_404(Student, id=student_id)
-
+        if exam.student.user_name != student_id:
+            return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+        
         last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
 
         if last_attempt and not last_attempt.passed:
             new_attempt_number = (last_attempt.attempt_number or 0) + 1
             new_attempt = StudentExamAttempt.objects.create(
-                student=student,
                 exam=exam,
                 attempt_number=new_attempt_number
             )
