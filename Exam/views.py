@@ -1,4 +1,5 @@
 from collections import defaultdict
+from django.utils import timezone
 from django.shortcuts import get_object_or_404, render
 from Course.models import StudentLessonProgress
 from rest_framework import viewsets, status
@@ -155,10 +156,10 @@ class ExamViewSet(viewsets.ModelViewSet):
         
         total_questions = exam.questions.count()
         score = self.calculate_score(request.data['answers'], exam)
-        passed = score >= exam.passing_score
+        passed = (score / total_questions)  >= exam.passing_score
         attempt, created = StudentExamAttempt.objects.update_or_create(
             exam=exam,
-            defaults={'score': score, 'passed': passed,'total_questions': total_questions }
+            defaults={'score': score, 'passed': passed,'total_questions': total_questions, 'end_time': timezone.now() }
         )
         if not passed:
             failed_lessons = self.calculate_failed_lessons(request.data['answers'])
@@ -177,13 +178,10 @@ class ExamViewSet(viewsets.ModelViewSet):
         for answer in answers:
             question_id = answer.get('question_id')
             selected_choice_id = answer.get('selected_choice_id')
-            print(selected_choice_id)
             try:
                 question = Question.objects.get(id=question_id)
                 correct_choice = Choice.objects.get(question=question, is_correct=True)
-                print(correct_choice.id)
                 is_correct = (selected_choice_id == correct_choice.id)
-                print(is_correct)
                 if is_correct:
                     correct_answers += 1
                 StudentAnswer.objects.create(
