@@ -222,16 +222,17 @@ class ExamViewSet(viewsets.ModelViewSet):
         
         return failed_lessons
 
-
-
     @action(detail=True, methods=['get'])
     def detailed_results(self, request, pk=None):
         exam = self.get_object()
-        student = request.user.student
-        attempt = StudentExamAttempt.objects.filter(exam=exam, student=student).latest('start_time')
+        student_id = request.query_params.get('student_id')
+        attempt_number = request.query_params.get('attempt_number')
+        if exam.student.user_name != student_id:
+            return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+        if attempt_number is None:
+            return Response({"detail": "Attempt number must be provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not attempt:
-            return Response({"detail": "No attempt found for this exam."}, status=status.HTTP_404_NOT_FOUND)
+        attempt = get_object_or_404(StudentExamAttempt, exam=exam, attempt_number=attempt_number)
 
         questions = exam.questions.all()
         results = []
@@ -253,15 +254,17 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def student_performance(self, request, pk=None):
         exam = self.get_object()
-        student = request.user.student
-        attempts = StudentExamAttempt.objects.filter(exam=exam, student=student)
-
+        student_id = request.query_params.get('student_id')
+        if exam.student.user_name != student_id:
+            return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+        attempts = StudentExamAttempt.objects.filter(exam=exam)
         return Response({
             "exam_title": exam.title,
             "attempts_count": attempts.count(),
             "average_score": attempts.aggregate(Avg('score'))['score__avg'],
             "highest_score": attempts.aggregate(Max('score'))['score__max'],
             "lowest_score": attempts.aggregate(Min('score'))['score__min'],
+            
         })
 
     @action(detail=True, methods=['get'])
@@ -280,10 +283,11 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def get_failed_lessons(self, request, pk=None):
-        student_id = request.query_params.get('student_id')
         exam = self.get_object()
-
-        attempt = StudentExamAttempt.objects.filter(student_id=student_id, exam=exam).order_by('-attempt_number').first()
+        student_id = request.query_params.get('student_id')
+        if exam.student.user_name != student_id:
+            return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+        attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').last()
 
         if not attempt or attempt.passed:
             return Response({"detail": "No failed lessons found."}, status=status.HTTP_404_NOT_FOUND)
@@ -418,7 +422,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         exam = get_object_or_404(Exam, id=exam_id)
         student = get_object_or_404(Student, id=student_id)
 
-        last_attempt = StudentExamAttempt.objects.filter(student=student, exam=exam).order_by('-attempt_number').first()
+        last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
 
         if last_attempt and not last_attempt.passed:
             new_attempt_number = (last_attempt.attempt_number or 0) + 1
