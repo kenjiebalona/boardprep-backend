@@ -145,23 +145,23 @@ class ExamViewSet(viewsets.ModelViewSet):
                     ExamQuestion.objects.create(exam=exam, question=question)
                 lesson_questions += questions.count()
 
-    @action(detail=True, methods=['post'])
     def submit_exam(self, request, pk=None):
         exam = self.get_object()
-        student = request.data.get('student')
-        # Process exam submission
+        student = exam.student
+        student_id = request.data.get('student_id')
+        print(student_id)
+        if student.user_name != student_id:
+            return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+        total_questions = exam.questions.count()
         score = self.calculate_score(request.data['answers'])
         passed = score >= exam.passing_score
-        if exam.student.user_name != student:
-            return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
-        
-        # Create or update StudentExamAttempt
         attempt, created = StudentExamAttempt.objects.update_or_create(
             exam=exam,
-            defaults={'score': score, 'passed': passed}
+            defaults={'score': score, 'passed': passed,'total_questions': total_questions }
         )
         if not passed:
-            failed_lessons = self.get_failed_lessons(request.data['answers'])
+            failed_lessons = self.calculate_failed_lessons(request.data['answers'])
+            attempt.failed_lessons.set(failed_lessons)
             StudentLessonProgress.objects.filter(
                 student=student,
                 lesson__in=failed_lessons
@@ -169,26 +169,37 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         serializer = StudentExamAttemptSerializer(attempt)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
+    
     def calculate_score(self, answers):
         correct_answers = sum(1 for answer in answers if answer['is_correct'])
         return correct_answers / len(answers)
 
-    def get_failed_lessons(self, answers):
+    def calculate_failed_lessons(self, answers):
         lesson_scores = {}
         for answer in answers:
-            lesson = answer['question'].lesson
+            question_id = answer.get('question_id') 
+            if not question_id:
+                continue  
+            try:
+                question = Question.objects.get(id=question_id)
+                lesson = question.lesson
+            except Question.DoesNotExist:
+                continue  
+
             if lesson not in lesson_scores:
                 lesson_scores[lesson] = {'correct': 0, 'total': 0}
             lesson_scores[lesson]['total'] += 1
-            if answer['is_correct']:
+            if answer.get('is_correct'):
                 lesson_scores[lesson]['correct'] += 1
 
         failed_lessons = [
             lesson for lesson, scores in lesson_scores.items()
             if scores['correct'] / scores['total'] < 0.75
         ]
+        
         return failed_lessons
+
+
 
     @action(detail=True, methods=['get'])
     def detailed_results(self, request, pk=None):

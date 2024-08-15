@@ -49,7 +49,8 @@ class StudentExamAttempt(models.Model):
     end_time = models.DateTimeField(null=True, blank=True)
     attempt_number = models.IntegerField(default=1)
     passed = models.BooleanField(default=False)
-
+    failed_lessons = models.ManyToManyField("Course.Lesson", blank=True)
+    
     def __str__(self):
         return f"{self.exam.student} - {self.exam} - {self.score}"
     
