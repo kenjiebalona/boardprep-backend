@@ -209,8 +209,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             question_data = QuestionSerializer(question).data
             question_data['student_answer'] = answer.selected_choice.text if answer else None
             question_data['is_correct'] = answer.is_correct if answer else False
-            question_data['correct_answer'] = question.choices.filter(is_correct=True).first().text
-            question_data['explanation'] = question.explanation
             results.append(question_data)
 
         return Response({
