@@ -150,22 +150,28 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam = self.get_object()
         student = exam.student
         student_id = request.data.get('student_id')
-        print(student_id)
-        if student.user_name != student_id:
+
+        if exam.student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
+
         last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
-        new_attempt_number = (last_attempt.attempt_number if last_attempt else 0) + 1
-        total_questions = exam.questions.count()
-        score = self.calculate_score(request.data['answers'], exam)
-        passed = (score / total_questions)  >= exam.passing_score
-        attempt = StudentExamAttempt.objects.create(
-            exam=exam,
-            score=score,
-            passed=passed,
-            total_questions=total_questions,
-            end_time=timezone.now(),
-            attempt_number=new_attempt_number
-        )
+    
+        if not last_attempt or last_attempt.end_time:
+            new_attempt_number = last_attempt.attempt_number  if last_attempt else 1
+            attempt = StudentExamAttempt.objects.create(
+                exam=exam,
+                attempt_number=new_attempt_number,
+                total_questions=exam.questions.count()
+            )
+        else:
+            attempt = last_attempt
+        score = self.calculate_score(request.data['answers'], exam, attempt)
+        passed = (score / attempt.total_questions) >= exam.passing_score
+        attempt.score = score
+        attempt.passed = passed
+        attempt.end_time = timezone.now()
+        attempt.save()
+
         if not passed:
             failed_lessons = self.calculate_failed_lessons(request.data['answers'])
             attempt.failed_lessons.set(failed_lessons)
@@ -177,9 +183,8 @@ class ExamViewSet(viewsets.ModelViewSet):
         serializer = StudentExamAttemptSerializer(attempt)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
-    def calculate_score(self, answers, exam):
+    def calculate_score(self, answers, exam, attempt):
         correct_answers = 0
-        attempt, _ = StudentExamAttempt.objects.get_or_create(exam=exam)
         for answer in answers:
             question_id = answer.get('question_id')
             selected_choice_id = answer.get('selected_choice_id')
@@ -189,7 +194,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 is_correct = (selected_choice_id == correct_choice.id)
                 if is_correct:
                     correct_answers += 1
-                StudentAnswer.objects.create(
+                StudentAnswer.objects.update_or_create(
                     exam_attempt=attempt,
                     question=question,
                     selected_choice_id=selected_choice_id,
