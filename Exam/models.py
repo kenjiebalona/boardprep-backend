@@ -73,6 +73,6 @@ class ExamQuestion(models.Model):
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     order = models.IntegerField(default=0)
-
+    attempt = models.ForeignKey(StudentExamAttempt, on_delete=models.CASCADE, related_name='exam_questions')
     class Meta:
         ordering = ['order']

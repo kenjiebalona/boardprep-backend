@@ -1,7 +1,7 @@
 from collections import defaultdict
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, render
-from Course.models import StudentLessonProgress
+from Course.models import Lesson, StudentLessonProgress
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -15,6 +15,8 @@ from .serializer import ExamSerializer, StudentExamAttemptSerializer
 from openai import OpenAI
 import os, environ
 from django.db.models import Avg, Max, Min, Count
+import random
+
 
 
 class ExamViewSet(viewsets.ModelViewSet):
@@ -51,33 +53,29 @@ class ExamViewSet(viewsets.ModelViewSet):
                 return Response({"detail": "No quiz attempts found for the student."}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
-                # Create the exam
                 exam = serializer.save()
-
-                # Calculate question counts
                 question_counts = self._calculate_question_counts(quiz_attempts)
                 if not question_counts:
                     return Response({"detail": "No valid question counts calculated."}, status=status.HTTP_400_BAD_REQUEST)
-
-                # Get difficulty distribution
                 difficulty_distribution = self._get_difficulty_distribution()
-
-                # Select and assign questions to the exam
-                self._select_questions(exam, question_counts, difficulty_distribution)
-
-                # Retrieve selected questions
+                attempt_number =  1 
+                selected_questions = self._select_questions(exam, question_counts, difficulty_distribution)
+                total_questions = len(selected_questions)
+                attempt = StudentExamAttempt.objects.create(
+                    exam=exam,
+                    attempt_number=attempt_number,
+                    total_questions=total_questions
+                )
+                for question in selected_questions:
+                    ExamQuestion.objects.create(exam=exam, question=question, attempt=attempt)
                 exam_questions = ExamQuestion.objects.filter(exam=exam)
                 avg_difficulty = exam_questions.aggregate(Avg('question__difficulty'))['question__difficulty__avg']
-
-                # Assign questions to the exam and save
                 exam.questions.set([eq.question for eq in exam_questions])
                 exam.save()
-
-                # Prepare the response data
                 response_data = self.get_serializer(exam).data
                 response_data.update({
-                    'exam_id': exam.id,
                     'status': 'Adaptive exam generated',
+                    'attempt_number': attempt_number,
                     'question_distribution': question_counts,
                     'average_difficulty': avg_difficulty
                 })
@@ -137,34 +135,33 @@ class ExamViewSet(viewsets.ModelViewSet):
         return defaultdict(lambda: {1: 0.33, 2: 0.33, 3: 0.34})
 
     def _select_questions(self, exam, question_counts, difficulty_distribution):
+        selected_questions = []
         for lesson_id, count in question_counts.items():
-            lesson_questions = 0
             for difficulty, proportion in difficulty_distribution[lesson_id].items():
                 diff_count = int(count * proportion)
                 questions = Question.objects.filter(lesson_id=lesson_id, difficulty=difficulty).order_by('?')[:diff_count]
-                for question in questions:
-                    ExamQuestion.objects.create(exam=exam, question=question)
-                lesson_questions += questions.count()
+                selected_questions.extend(questions)
+        return selected_questions
 
     def submit_exam(self, request, pk=None):
         exam = self.get_object()
         student = exam.student
         student_id = request.data.get('student_id')
-
+        attempt_number = request.data.get('attempt_number')
         if exam.student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
 
-        last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
-    
-        if not last_attempt or last_attempt.end_time:
-            new_attempt_number = last_attempt.attempt_number  if last_attempt else 1
-            attempt = StudentExamAttempt.objects.create(
-                exam=exam,
-                attempt_number=new_attempt_number,
-                total_questions=exam.questions.count()
-            )
-        else:
-            attempt = last_attempt
+        attempt = StudentExamAttempt.objects.filter(
+        exam=exam, 
+        attempt_number=attempt_number
+        ).first()
+
+        if not attempt:
+            return Response({"detail": "Invalid attempt."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if attempt.end_time:
+            return Response({"detail": "This attempt has already been submitted."}, status=status.HTTP_400_BAD_REQUEST)
+
         score = self.calculate_score(request.data['answers'], exam, attempt)
         passed = (score / attempt.total_questions) >= exam.passing_score
         attempt.score = score
@@ -242,8 +239,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if attempt_number is None:
             return Response({"detail": "Attempt number must be provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-        attempt = get_object_or_404(StudentExamAttempt, exam=exam, attempt_number=attempt_number)
-
+        attempt = StudentExamAttempt.objects.filter(exam=exam, attempt_number=attempt_number).first()
         questions = exam.questions.all()
         results = []
 
@@ -310,27 +306,97 @@ class ExamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def get_exam_questions(self, request, pk=None):
         student_id = request.query_params.get('student_id')
+        attempt_number = request.query_params.get('attempt_number')
         print(student_id)
         exam = self.get_object()
         if exam.student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
-        attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
-
+        attempt = StudentExamAttempt.objects.filter(
+            exam=exam,
+            attempt_number=attempt_number
+        ).first()
         if not attempt:
             return Response({"detail": "No attempt found for this exam."}, status=status.HTTP_404_NOT_FOUND)
-
         questions = attempt.exam.questions.all()
         question_data = QuestionSerializer(questions, many=True).data
-
         return Response({
             "exam_title": exam.title,
             "attempt_number": attempt.attempt_number,
             "questions": question_data
         }, status=status.HTTP_200_OK)
         
+    def generate_questions_for_attempt(self, exam, student, attempt_number):
+        questions = []
+        failed_lessons = []
+
+        if attempt_number > 1:
+            previous_attempt = StudentExamAttempt.objects.filter(
+                exam=exam, 
+                attempt_number=attempt_number-1
+            ).first()
+            if previous_attempt:
+                failed_lessons = previous_attempt.failed_lessons.all()
+
+        available_questions = Question.objects.filter(lesson__syllabus__course=exam.course)
+        difficulty_distribution = self._get_difficulty_distribution()
+
+        total_lessons = Lesson.objects.filter(syllabus__course=exam.course).count()
+        questions_per_lesson = exam.questions.count() // total_lessons
+
+        for lesson in failed_lessons:
+            lesson_questions = self._select_questions_for_lesson(
+                lesson.lesson_id, questions_per_lesson, difficulty_distribution, 
+                available_questions.filter(lesson=lesson)
+            )
+            questions.extend(lesson_questions)
+
+        remaining_count = exam.questions.count() - len(questions)
+        other_lessons = Lesson.objects.filter(syllabus__course=exam.course).exclude(lesson_id__in=[lesson.lesson_id for lesson in failed_lessons])
+        for lesson in other_lessons:
+            if len(questions) >= exam.questions.count():
+                break
+            count = min(questions_per_lesson, remaining_count)
+            lesson_questions = self._select_questions_for_lesson(
+                lesson.lesson_id, count, difficulty_distribution, 
+                available_questions.filter(lesson=lesson)
+            )
+            questions.extend(lesson_questions)
+
+        questions = questions[:exam.questions.count()]
+        random.shuffle(questions)
+        return questions
+
+    def _select_questions_for_lesson(self, lesson_id, count, difficulty_distribution, question_queryset):
+        selected_questions = []
+        for difficulty, proportion in difficulty_distribution[lesson_id].items():
+            diff_count = int(count * proportion)
+            questions = question_queryset.filter(difficulty=difficulty).order_by('?')[:diff_count]
+            selected_questions.extend(questions)
+        return selected_questions
+
+    def _get_difficulty_distribution(self):
+        return defaultdict(lambda: {1: 0.3, 2: 0.4, 3: 0.3})
     
+    @action(detail=True, methods=['get'], url_path='current-attempt-number')
+    def get_current_attempt_number(self, request, pk=None):
+        exam = self.get_object()
+        student_id = request.query_params.get('student_id')
+        
+        if not student_id:
+            return Response({"detail": "Student ID must be provided."}, status=status.HTTP_400_BAD_REQUEST)
+ 
+        last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
+        if last_attempt:
+              next_attempt_number = last_attempt.attempt_number + 1
+              last_attempt_serialized = StudentExamAttemptSerializer(last_attempt).data
+        else:
+            next_attempt_number = 1
+            last_attempt_serialized = None
 
+        return Response({"exam_id": exam.id, "student_id": student_id, "last_attempt": last_attempt_serialized, "next_attempt_number": next_attempt_number}, status=status.HTTP_200_OK)
 
+        
+    
 class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     queryset = StudentExamAttempt.objects.all()
     serializer_class = StudentExamAttemptSerializer
@@ -414,14 +480,23 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
     
     def create_new_attempt(self, student, exam):
-        last_attempt = StudentExamAttempt.objects.filter(student=student, exam=exam).order_by('-attempt_number').first()
+        last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
         new_attempt_number = last_attempt.attempt_number + 1 if last_attempt else 1
 
+        exam_viewset = ExamViewSet()
+        questions = exam_viewset.generate_questions_for_attempt(exam, student, new_attempt_number)
         new_attempt = StudentExamAttempt.objects.create(
-            student=student,
             exam=exam,
-            attempt_number=new_attempt_number
+            attempt_number=new_attempt_number,
+            total_questions=len(questions)
         )
+        for order, question in enumerate(questions, start=1):
+            ExamQuestion.objects.create(
+                exam=exam,
+                question=question,
+                order=order,
+                attempt=new_attempt
+            )
         return new_attempt
     
     @action(detail=False, methods=['post'])
@@ -434,18 +509,13 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
 
         if exam.student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
-        
-        last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
 
-        if last_attempt and not last_attempt.passed:
-            total_questions = exam.questions.count()
-            new_attempt_number = (last_attempt.attempt_number or 0) + 1
-            new_attempt = StudentExamAttempt.objects.create(
-                exam=exam,
-                attempt_number=new_attempt_number,
-                total_questions=total_questions
-            )
-            return Response({"detail": "New exam attempt created.", "attempt_number": new_attempt.attempt_number})
-        else:
-            return Response({"detail": "Student has not failed any previous attempts."}, status=status.HTTP_400_BAD_REQUEST)
+        new_attempt = self.create_new_attempt(exam.student, exam, )
+        questions = new_attempt.exam.questions.all()
+        question_data = QuestionSerializer(questions, many=True).data
 
+        return Response({
+            "attempt_number": new_attempt.attempt_number,
+            "questions": question_data,
+            "status": "New exam attempt created."
+        }, status=status.HTTP_201_CREATED)
