@@ -153,13 +153,18 @@ class ExamViewSet(viewsets.ModelViewSet):
         print(student_id)
         if student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
-        
+        last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
+        new_attempt_number = (last_attempt.attempt_number if last_attempt else 0) + 1
         total_questions = exam.questions.count()
         score = self.calculate_score(request.data['answers'], exam)
         passed = (score / total_questions)  >= exam.passing_score
-        attempt, created = StudentExamAttempt.objects.update_or_create(
+        attempt = StudentExamAttempt.objects.create(
             exam=exam,
-            defaults={'score': score, 'passed': passed,'total_questions': total_questions, 'end_time': timezone.now() }
+            score=score,
+            passed=passed,
+            total_questions=total_questions,
+            end_time=timezone.now(),
+            attempt_number=new_attempt_number
         )
         if not passed:
             failed_lessons = self.calculate_failed_lessons(request.data['answers'])
