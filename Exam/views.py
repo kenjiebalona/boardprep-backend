@@ -417,7 +417,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def retake_exam(self, request, *args, **kwargs):
         student_id = request.data.get('student_id')
-        exam = request.data.get('exam_id')
+        exam = self.get_object()
 
         if exam.student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
