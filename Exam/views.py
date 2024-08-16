@@ -293,7 +293,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             return Response({"detail": "No failed lessons found."}, status=status.HTTP_404_NOT_FOUND)
 
         failed_lessons = attempt.failed_lessons.all()
-        lesson_data = [{"lesson_id": lesson.id, "lesson_title": lesson.title} for lesson in failed_lessons]
+        lesson_data = [{"lesson_id": lesson.lesson_id, "lesson_title": lesson.lesson_title} for lesson in failed_lessons]
 
         return Response({"failed_lessons": lesson_data}, status=status.HTTP_200_OK)
 
