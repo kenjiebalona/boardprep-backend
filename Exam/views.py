@@ -317,14 +317,15 @@ class ExamViewSet(viewsets.ModelViewSet):
         ).first()
         if not attempt:
             return Response({"detail": "No attempt found for this exam."}, status=status.HTTP_404_NOT_FOUND)
-        questions = attempt.exam.questions.all()
-        question_data = QuestionSerializer(questions, many=True).data
+        exam_questions = ExamQuestion.objects.filter(exam=exam, attempt=attempt)
+        question_data = QuestionSerializer([eq.question for eq in exam_questions], many=True).data
         return Response({
             "exam_title": exam.title,
             "attempt_number": attempt.attempt_number,
-            "questions": question_data
+            "questions": question_data,
+            "total_questions": len(question_data)
         }, status=status.HTTP_200_OK)
-        
+                
     def generate_questions_for_attempt(self, exam, student, attempt_number):
         questions = []
         failed_lessons = []
