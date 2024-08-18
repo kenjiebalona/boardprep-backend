@@ -117,9 +117,12 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def _adjust_question_counts(self, question_counts):
         total_questions = sum(question_counts.values())
+        print(f"Total questions before adjustment: {total_questions}")  # Debug statement
         adjustment_factor = 75 / total_questions
 
         adjusted_counts = {lesson_id: max(1, int(count * adjustment_factor)) for lesson_id, count in question_counts.items()}
+
+        print(f"Adjusted question counts: {adjusted_counts}")  # Debug statement
 
         while sum(adjusted_counts.values()) != 75:
             if sum(adjusted_counts.values()) < 75:
@@ -129,7 +132,10 @@ class ExamViewSet(viewsets.ModelViewSet):
                 min_key = min(adjusted_counts, key=adjusted_counts.get)
                 adjusted_counts[min_key] -= 1
 
+        print(f"Total questions after adjustment: {sum(adjusted_counts.values())}")  # Debug statement
+
         return adjusted_counts
+
 
     def _get_difficulty_distribution(self):
         return defaultdict(lambda: {1: 0.33, 2: 0.33, 3: 0.34})
@@ -355,7 +361,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         difficulty_distribution = self._get_difficulty_distribution()
 
         total_lessons = Lesson.objects.filter(syllabus__course=exam.course).count()
-        questions_per_lesson = exam.questions.count() // total_lessons
+        questions_per_lesson = 75 // total_lessons
 
         for lesson in failed_lessons:
             lesson_questions = self._select_questions_for_lesson(
@@ -364,10 +370,10 @@ class ExamViewSet(viewsets.ModelViewSet):
             )
             questions.extend(lesson_questions)
 
-        remaining_count = exam.questions.count() - len(questions)
+        remaining_count = 75 - len(questions)
         other_lessons = Lesson.objects.filter(syllabus__course=exam.course).exclude(lesson_id__in=[lesson.lesson_id for lesson in failed_lessons])
         for lesson in other_lessons:
-            if len(questions) >= exam.questions.count():
+            if len(questions) >= 75:
                 break
             count = min(questions_per_lesson, remaining_count)
             lesson_questions = self._select_questions_for_lesson(
@@ -376,7 +382,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             )
             questions.extend(lesson_questions)
 
-        questions = questions[:exam.questions.count()]
+        questions = questions[:75]
         random.shuffle(questions)
         return questions
 
@@ -386,7 +392,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             diff_count = int(count * proportion)
             questions = question_queryset.filter(difficulty=difficulty).order_by('?')[:diff_count]
             selected_questions.extend(questions)
-        return selected_questions
+        return selected_questions[:count]
 
     def _get_difficulty_distribution(self):
         return defaultdict(lambda: {1: 0.3, 2: 0.4, 3: 0.3})
