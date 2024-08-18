@@ -5,6 +5,7 @@ from Course.models import Lesson, StudentLessonProgress
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.request import Request
 
 from Question.models import Question, StudentAnswer, Choice
 from Question.serializer import QuestionSerializer
@@ -93,7 +94,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if total_lessons == 0:
             return {}
 
-        avg_questions_per_lesson = 100 / total_lessons
+        avg_questions_per_lesson = 75 / total_lessons
         question_counts = {}
 
         for attempt in quiz_attempts:
@@ -116,13 +117,12 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def _adjust_question_counts(self, question_counts):
         total_questions = sum(question_counts.values())
-        adjustment_factor = 100 / total_questions
+        adjustment_factor = 75 / total_questions
 
         adjusted_counts = {lesson_id: max(1, int(count * adjustment_factor)) for lesson_id, count in question_counts.items()}
 
-        # Ensure the total is exactly 100
-        while sum(adjusted_counts.values()) != 100:
-            if sum(adjusted_counts.values()) < 100:
+        while sum(adjusted_counts.values()) != 75:
+            if sum(adjusted_counts.values()) < 75:
                 max_key = max(adjusted_counts, key=adjusted_counts.get)
                 adjusted_counts[max_key] += 1
             else:
@@ -164,11 +164,15 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         score = self.calculate_score(request.data['answers'], exam, attempt)
         passed = (score / attempt.total_questions) >= exam.passing_score
+        
         attempt.score = score
         attempt.passed = passed
         attempt.end_time = timezone.now()
+        
+        feedback = StudentExamAttemptViewSet().generate_feedback(attempt)
+        attempt.feedback = feedback
         attempt.save()
-
+        
         if not passed:
             failed_lessons = self.calculate_failed_lessons(request.data['answers'])
             attempt.failed_lessons.set(failed_lessons)
@@ -176,9 +180,15 @@ class ExamViewSet(viewsets.ModelViewSet):
                 student=student,
                 lesson__in=failed_lessons
             ).update(is_completed=False)
+            
+            print(f"Failed lessons set: {failed_lessons}")  # Debug print
 
-        serializer = StudentExamAttemptSerializer(attempt)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response({
+            "detail": "Exam submitted successfully.", 
+            "score": score, 
+            "passed": passed,
+            "feedback": feedback
+        })
     
     def calculate_score(self, answers, exam, attempt):
         correct_answers = 0
@@ -249,12 +259,15 @@ class ExamViewSet(viewsets.ModelViewSet):
             question_data['student_answer'] = answer.selected_choice.text if answer else None
             question_data['is_correct'] = answer.is_correct if answer else False
             results.append(question_data)
+        
+        feedback = attempt.feedback
 
         return Response({
             "exam_title": exam.title,
             "score": attempt.score,
             "total_questions": len(questions),
-            "results": results
+            "results": results,
+            "feedback": feedback 
         })
 
     @action(detail=True, methods=['get'])
@@ -395,7 +408,6 @@ class ExamViewSet(viewsets.ModelViewSet):
             last_attempt_serialized = None
 
         return Response({"exam_id": exam.id, "student_id": student_id, "last_attempt": last_attempt_serialized, "next_attempt_number": next_attempt_number}, status=status.HTTP_200_OK)
-
         
     
 class StudentExamAttemptViewSet(viewsets.ModelViewSet):
@@ -414,9 +426,11 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        
         if serializer.is_valid():
             score = serializer.validated_data.get('score', instance.score)
 
+            # Generating feedback within the update method
             student = instance.student
             student_name = f"{student.first_name} {student.last_name}"
             specialization_name = student.specialization.name
@@ -427,12 +441,15 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             correct_answers_paragraph = self.create_answer_paragraph(correct_answers, "correct")
             wrong_answers_paragraph = self.create_answer_paragraph(wrong_answers, "wrong")
 
-            feedback = self.generate_feedback(student_name, specialization_name, correct_answers_paragraph,
-                                              wrong_answers_paragraph)
+            feedback = self.generate_feedback(student_name, specialization_name, correct_answers_paragraph,wrong_answers_paragraph)
+            
+            # Save the instance along with the generated feedback
             serializer.save(feedback=feedback)
             return Response(serializer.data)
+        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    
     def create_answer_paragraph(self, answers, field):
         if answers.exists():
             paragraph = f"Here are the questions where I got the {field} answer:\n"
@@ -451,23 +468,36 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             paragraph += f"Selected Answer: {selected_choice_text}\nLesson: {lesson}\n"
         return paragraph
 
-    def generate_feedback(self, student_name, specialization_name, correct_answers_paragraph, wrong_answers_paragraph):
+    def generate_feedback(self, attempt):
+        print("Starting feedback generation")  # Debug print
+
         env = environ.Env(DEBUG=(bool, False))
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
         client = OpenAI(api_key=env('OPENAI_API_KEY'))
 
+        student = attempt.exam.student
+        student_name = f"{student.first_name} {student.last_name}"
+        specialization_name = student.specialization.name
+
+        correct_answers = StudentAnswer.objects.filter(exam_attempt=attempt, is_correct=True)
+        wrong_answers = StudentAnswer.objects.filter(exam_attempt=attempt, is_correct=False)
+
+        correct_answers_paragraph = self.create_answer_paragraph(correct_answers, "correct")
+        wrong_answers_paragraph = self.create_answer_paragraph(wrong_answers, "wrong")
+
+        print(f"Generating feedback for {student_name}, {specialization_name}")  # Debug print
+
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system",
-                 "content": "You are Preppy, BoardPrep's Engineering Companion and an excellent and critical engineer, tasked with providing constructive feedback on mock test performances of your students. In giving a feedback, you don't thank the student for sharing the details, instead you congratulate the student first for finishing the mock test, then you provide your feedbacks. After providing your feedbacks, you then put your signature at the end of your response"},
-                {"role": "user",
-                 "content": f"I am {student_name}, a {specialization_name} major, and here are the details of my test. {correct_answers_paragraph}\n\n{wrong_answers_paragraph}\n\nBased on these results, can you provide some feedback and suggestions for improvement, like what subjects to focus on, which field I excel, and some strategies? Address me directly, and don't put any placeholders as this will be displayed directly in unformatted text form."}
+                {"role": "system", "content": "You are Preppy, BoardPrep's Engineering Companion and an excellent and critical engineer, tasked with providing constructive feedback on mock test performances of your students. In giving a feedback, you don't thank the student for sharing the details, instead you congratulate the student first for finishing the mock test, then you provide your feedbacks. After providing your feedbacks, you then put your signature at the end of your response"},
+                {"role": "user", "content": f"I am {student_name}, a {specialization_name} major, and here are the details of my test. Score: {attempt.score}, Passed: {attempt.passed}\n\n{correct_answers_paragraph}\n\n{wrong_answers_paragraph}\n\nBased on these results, can you provide some feedback and suggestions for improvement, like what subjects to focus on, which field I excel, and some strategies? Address me directly, and don't put any placeholders as this will be displayed directly in unformatted text form."}
             ]
         )
 
         feedback = completion.choices[0].message.content.strip()
+        print(f"Feedback generated: {feedback[:100]}...") 
         return feedback
 
     def retrieve(self, request, *args, **kwargs):
@@ -512,11 +542,11 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
 
         new_attempt = self.create_new_attempt(exam.student, exam, )
-        questions = new_attempt.exam.questions.all()
-        question_data = QuestionSerializer(questions, many=True).data
-
+        exam_questions = ExamQuestion.objects.filter(attempt=new_attempt)
+        question_data = QuestionSerializer([eq.question for eq in exam_questions], many=True).data
         return Response({
             "attempt_number": new_attempt.attempt_number,
+            "total_questions": len(question_data),
             "questions": question_data,
             "status": "New exam attempt created."
         }, status=status.HTTP_201_CREATED)
