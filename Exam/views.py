@@ -94,7 +94,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if total_lessons == 0:
             return {}
 
-        avg_questions_per_lesson = 75 / total_lessons
+        avg_questions_per_lesson = 25/ total_lessons
         question_counts = {}
 
         for attempt in quiz_attempts:
@@ -118,14 +118,14 @@ class ExamViewSet(viewsets.ModelViewSet):
     def _adjust_question_counts(self, question_counts):
         total_questions = sum(question_counts.values())
         print(f"Total questions before adjustment: {total_questions}")  # Debug statement
-        adjustment_factor = 75 / total_questions
+        adjustment_factor = 25 / total_questions
 
         adjusted_counts = {lesson_id: max(1, int(count * adjustment_factor)) for lesson_id, count in question_counts.items()}
 
         print(f"Adjusted question counts: {adjusted_counts}")  # Debug statement
 
-        while sum(adjusted_counts.values()) != 75:
-            if sum(adjusted_counts.values()) < 75:
+        while sum(adjusted_counts.values()) != 25:
+            if sum(adjusted_counts.values()) < 25:
                 max_key = max(adjusted_counts, key=adjusted_counts.get)
                 adjusted_counts[max_key] += 1
             else:
@@ -312,7 +312,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         student_id = request.query_params.get('student_id')
         if exam.student.user_name != student_id:
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
-        attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
+        attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').last()
 
         if not attempt or attempt.passed:
             return Response({"detail": "No failed lessons found."}, status=status.HTTP_404_NOT_FOUND)
@@ -361,7 +361,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         difficulty_distribution = self._get_difficulty_distribution()
 
         total_lessons = Lesson.objects.filter(syllabus__course=exam.course).count()
-        questions_per_lesson = 75 // total_lessons
+        questions_per_lesson = 25 // total_lessons
 
         for lesson in failed_lessons:
             lesson_questions = self._select_questions_for_lesson(
@@ -370,10 +370,10 @@ class ExamViewSet(viewsets.ModelViewSet):
             )
             questions.extend(lesson_questions)
 
-        remaining_count = 75 - len(questions)
+        remaining_count = 35 - len(questions)
         other_lessons = Lesson.objects.filter(syllabus__course=exam.course).exclude(lesson_id__in=[lesson.lesson_id for lesson in failed_lessons])
         for lesson in other_lessons:
-            if len(questions) >= 75:
+            if len(questions) >= 35:
                 break
             count = min(questions_per_lesson, remaining_count)
             lesson_questions = self._select_questions_for_lesson(
@@ -382,7 +382,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             )
             questions.extend(lesson_questions)
 
-        questions = questions[:75]
+        questions = questions[:35]
         random.shuffle(questions)
         return questions
 
@@ -396,6 +396,38 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def _get_difficulty_distribution(self):
         return defaultdict(lambda: {1: 0.3, 2: 0.4, 3: 0.3})
+    
+    @action(detail=False, methods=['get'])
+    def get_student_exam_info(self, request, *args, **kwargs):
+        student_id = request.query_params.get('student_id')
+        class_instance_id = request.query_params.get('class_instance_id')
+        course_id = request.query_params.get('course_id')
+
+        if not student_id or not class_instance_id or not course_id:
+            return Response({"detail": "Missing required parameters."}, status=status.HTTP_400_BAD_REQUEST)
+
+        student = get_object_or_404(Student, user_name=student_id)
+        exams = Exam.objects.filter(student=student, course_id=course_id, class_instance_id=class_instance_id)
+
+        exam_data = []
+        for exam in exams:
+            last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
+            if last_attempt:
+                exam_info = {
+                    "exam_id": exam.id,
+                    "current_score": last_attempt.score,
+                    "passed": last_attempt.passed,
+                    "current_attempt": last_attempt.attempt_number,
+                    "current_feedback": last_attempt.feedback
+                }
+                exam_data.append(exam_info)
+
+        return Response({
+            "student_id": student_id,
+            "class_instance_id": class_instance_id,
+            "course_id": course_id,
+            "exams": exam_data
+        }, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'], url_path='current-attempt-number')
     def get_current_attempt_number(self, request, pk=None):
@@ -415,7 +447,8 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         return Response({"exam_id": exam.id, "student_id": student_id, "last_attempt": last_attempt_serialized, "next_attempt_number": next_attempt_number}, status=status.HTTP_200_OK)
         
-    
+  
+        
 class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     queryset = StudentExamAttempt.objects.all()
     serializer_class = StudentExamAttemptSerializer
@@ -492,7 +525,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         correct_answers_paragraph = self.create_answer_paragraph(correct_answers, "correct")
         wrong_answers_paragraph = self.create_answer_paragraph(wrong_answers, "wrong")
 
-        print(f"Generating feedback for {student_name}, {specialization_name}")  # Debug print
+        print(f"Generating feedback for {student_name}, {specialization_name}")  
 
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",

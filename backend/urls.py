@@ -78,6 +78,8 @@ urlpatterns = [
     path('exams/<int:pk>/get-exam-questions/', ExamViewSet.as_view({'get': 'get_exam_questions'}), name='exam-get-exam-questions'),
     path('studentExamAttempt/retake/', StudentExamAttemptViewSet.as_view({'post': 'retake_exam'}), name='student-exam-attempt-retake'),
     path('exams/<int:pk>/current-attempt-number/', ExamViewSet.as_view({'get': 'get_current_attempt_number'}), name='exam-current-attempt-number'),
+    path('api/exams/student-info/', ExamViewSet.as_view({'get': 'get_student_exam_info'}), name='exam-student-info'),
+
 
 
 ]
