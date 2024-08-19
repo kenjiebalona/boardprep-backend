@@ -418,7 +418,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                     "current_score": last_attempt.score,
                     "passed": last_attempt.passed,
                     "current_attempt": last_attempt.attempt_number,
-                    "current_feedback": last_attempt.feedback
+                    "current_feedback": last_attempt.feedback,
                 }
                 exam_data.append(exam_info)
 
@@ -490,21 +490,26 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
 
     
     def create_answer_paragraph(self, answers, field):
-        if answers.exists():
-            paragraph = f"Here are the questions where I got the {field} answer:\n"
-        else:
-            paragraph = "I got all the questions wrong.\n" if field == 'wrong' else "I got all the questions correct.\n"
-
+        if not answers.exists():
+            return f"You answered all questions {'correctly' if field == 'correct' else 'incorrectly'}.\n"
+    
+        paragraph = f"Questions you answered {field}ly:\n"
         for answer in answers:
             question_text = answer.question.text
-            lesson = answer.question.lesson
+            lesson_title = answer.question.lesson.lesson_title
+            selected_choice_text = answer.selected_choice.text
             correct_choice = Choice.objects.filter(question=answer.question, is_correct=True).first()
             correct_answer_text = correct_choice.text if correct_choice else "Not available"
-            selected_choice_text = answer.selected_choice.text
-            paragraph += f"Question: {question_text}\n"
+            
+            paragraph += (
+                f"\nQuestion: {question_text}\n"
+                f"Your Answer: {selected_choice_text}\n"
+            )
             if field == 'wrong':
-                paragraph += f"Correct Answer: {correct_answer_text}"
-            paragraph += f"Selected Answer: {selected_choice_text}\nLesson: {lesson}\n"
+                paragraph += f"Correct Answer since your answer was wrong: {correct_answer_text}\n"
+            
+            paragraph += f"Lesson: {lesson_title}\n"
+        
         return paragraph
 
     def generate_feedback(self, attempt):
@@ -525,19 +530,39 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         correct_answers_paragraph = self.create_answer_paragraph(correct_answers, "correct")
         wrong_answers_paragraph = self.create_answer_paragraph(wrong_answers, "wrong")
 
+        total_questions = attempt.total_questions
+        correct_count = correct_answers.count()
+        score_percentage = (attempt.score / total_questions) * 100 if total_questions > 0 else 0
+        
+        print(correct_answers_paragraph)
+        print(wrong_answers_paragraph)
         print(f"Generating feedback for {student_name}, {specialization_name}")  
+        
+        if 0 <= score_percentage < 25:
+            score_feedback = f"Poor performance. You answered {correct_count} out of {total_questions} questions correctly. You need to review the material and focus on understanding the key concepts."
+        elif 25 <= score_percentage < 50:
+            score_feedback = f"Below average performance. You answered {correct_count} out of {total_questions} questions correctly. You have some understanding, but there are significant areas for improvement."
+        elif 50 <= score_percentage < 75:
+            score_feedback = f"Average performance. You answered {correct_count} out of {total_questions} questions correctly. You understand the basics, but more practice is needed to strengthen your knowledge."
+        elif 75 <= score_percentage < 90:
+            score_feedback = f"Good performance. You answered {correct_count} out of {total_questions} questions correctly. You have a solid understanding, but there's still room for improvement."
+        elif 90 <= score_percentage <= 100:
+            score_feedback = f"Excellent performance! You answered {correct_count} out of {total_questions} questions correctly. You have a strong grasp of the material."
+        else:
+            score_feedback = "Invalid score. Please check the data."
 
         completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are Preppy, BoardPrep's Engineering Companion and an excellent and critical engineer, tasked with providing constructive feedback on mock test performances of your students. In giving a feedback, you don't thank the student for sharing the details, instead you congratulate the student first for finishing the mock test, then you provide your feedbacks. After providing your feedbacks, you then put your signature at the end of your response"},
-                {"role": "user", "content": f"I am {student_name}, a {specialization_name} major, and here are the details of my test. Score: {attempt.score}, Passed: {attempt.passed}\n\n{correct_answers_paragraph}\n\n{wrong_answers_paragraph}\n\nBased on these results, can you provide some feedback and suggestions for improvement, like what subjects to focus on, which field I excel, and some strategies? Address me directly, and don't put any placeholders as this will be displayed directly in unformatted text form."}
+                {"role": "system", "content": "You are Preppy, BoardPrep's Engineering Companion and an excellent and critical engineer, tasked with providing constructive feedback on exam performances of your students. In giving feedback, you don't thank the student for sharing the details, instead you congratulate the student first for finishing the exam, then you provide your feedbacks. Be critical about your feedback expecially if the student failed the exam so that they will know more where and how to improve. After providing your feedbacks, you then put your signature at the end of your response"},
+                {"role": "user", "content": f"I am {student_name}, a {specialization_name} major, and here are the details of my test. Score: {attempt.score}/{total_questions} ({score_percentage:.2f}%), Passed: {attempt.passed}\n\n{correct_answers_paragraph}\n\n{wrong_answers_paragraph}\n\nHere's an initial assessment of your performance:\n\n{score_feedback}\n\nBased on these results, can you provide some detailed feedback and suggestions for improvement, like what subjects to focus on, which field I excel in, and some strategies? Address me directly, and don't put any placeholders as this will be displayed directly in unformatted text form."}
             ]
         )
 
-        feedback = completion.choices[0].message.content.strip()
-        print(f"Feedback generated: {feedback[:100]}...") 
-        return feedback
+        ai_feedback = completion.choices[0].message.content.strip()
+        final_feedback = f"{ai_feedback}\n\nAdditional Performance Summary:\n{score_feedback}"
+        print(f"Feedback generated: {final_feedback[:100]}...") 
+        return final_feedback
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
