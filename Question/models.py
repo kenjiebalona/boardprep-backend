@@ -38,7 +38,11 @@ class StudentAnswer(models.Model):
     challenge_attempt = models.ForeignKey('Challenge.StudentChallengeAttempt', null=True, blank=True, on_delete=models.CASCADE)
 
     def __str__(self):
-        return f"Student: {self.student.id} - Question: {self.question.id} - Choice: {self.selected_choice.id} - Correct: {self.is_correct}"
+        student_id = self.student.user_name if self.student else "None"
+        question_id = self.question.id if self.question else "None"
+        choice_id = self.selected_choice.id if self.selected_choice else "None"
+
+        return f"Student: {student_id} - Question: {question_id} - Choice: {choice_id} - Correct: {self.is_correct}"
 
 
 class QuestionGenerator(models.Model):

@@ -489,31 +489,48 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     
-    def create_answer_paragraph(self, answers, field):
-        if not answers.exists():
-            return f"You answered all questions {'correctly' if field == 'correct' else 'incorrectly'}.\n"
-    
-        paragraph = f"Questions you answered {field}ly:\n"
-        for answer in answers:
-            question_text = answer.question.text
-            lesson_title = answer.question.lesson.lesson_title
-            selected_choice_text = answer.selected_choice.text
-            correct_choice = Choice.objects.filter(question=answer.question, is_correct=True).first()
-            correct_answer_text = correct_choice.text if correct_choice else "Not available"
-            
-            paragraph += (
-                f"\nQuestion: {question_text}\n"
-                f"Your Answer: {selected_choice_text}\n"
-            )
-            if field == 'wrong':
-                paragraph += f"Correct Answer since your answer was wrong: {correct_answer_text}\n"
-            
-            paragraph += f"Lesson: {lesson_title}\n"
-        
-        return paragraph
+    def create_answer_paragraph(self, correct_answers, wrong_answers):
+
+        correct_paragraph = ""
+        wrong_paragraph = ""
+
+        if correct_answers.exists():
+            correct_paragraph = "Questions you answered correctly:\n\n"
+            for answer in correct_answers:
+                question_text = answer.question.text
+                lesson_title = answer.question.lesson.lesson_title
+                selected_choice_text = answer.selected_choice.text
+
+                correct_paragraph += (
+                    f"Lesson: {lesson_title}\n"
+                    f"Question: {question_text}\n"
+                    f"Your Answer: {selected_choice_text}\n\n"
+                )
+        else:
+            correct_paragraph = "You didn't answer any questions correctly.\n"
+
+        if wrong_answers.exists():
+            wrong_paragraph = "Questions you answered incorrectly:\n\n"
+            for answer in wrong_answers:
+                question_text = answer.question.text
+                lesson_title = answer.question.lesson.lesson_title
+                selected_choice_text = answer.selected_choice.text
+                correct_choice = Choice.objects.filter(question=answer.question, is_correct=True).first()
+                correct_answer_text = correct_choice.text if correct_choice else "Not available"
+
+                wrong_paragraph += (
+                    f"Lesson: {lesson_title}\n"
+                    f"Question: {question_text}\n"
+                    f"Your Answer: {selected_choice_text}\n"
+                    f"Correct Answer: {correct_answer_text}\n\n"                 
+                )
+        else:
+            wrong_paragraph = "You answered all questions correctly.\n"
+
+        return correct_paragraph + wrong_paragraph
 
     def generate_feedback(self, attempt):
-        print("Starting feedback generation")  # Debug print
+        print("Starting feedback generation")  
 
         env = environ.Env(DEBUG=(bool, False))
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -526,16 +543,17 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
 
         correct_answers = StudentAnswer.objects.filter(exam_attempt=attempt, is_correct=True)
         wrong_answers = StudentAnswer.objects.filter(exam_attempt=attempt, is_correct=False)
+        
+        print(correct_answers)
+        print(wrong_answers)
 
-        correct_answers_paragraph = self.create_answer_paragraph(correct_answers, "correct")
-        wrong_answers_paragraph = self.create_answer_paragraph(wrong_answers, "wrong")
+        answers_paragraph = self.create_answer_paragraph(correct_answers, wrong_answers)
+        print(answers_paragraph)
 
         total_questions = attempt.total_questions
         correct_count = correct_answers.count()
         score_percentage = (attempt.score / total_questions) * 100 if total_questions > 0 else 0
         
-        print(correct_answers_paragraph)
-        print(wrong_answers_paragraph)
         print(f"Generating feedback for {student_name}, {specialization_name}")  
         
         if 0 <= score_percentage < 25:
@@ -555,9 +573,11 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are Preppy, BoardPrep's Engineering Companion and an excellent and critical engineer, tasked with providing constructive feedback on exam performances of your students. In giving feedback, you don't thank the student for sharing the details, instead you congratulate the student first for finishing the exam, then you provide your feedbacks. Be critical about your feedback expecially if the student failed the exam so that they will know more where and how to improve. After providing your feedbacks, you then put your signature at the end of your response"},
-                {"role": "user", "content": f"I am {student_name}, a {specialization_name} major, and here are the details of my test. Score: {attempt.score}/{total_questions} ({score_percentage:.2f}%), Passed: {attempt.passed}\n\n{correct_answers_paragraph}\n\n{wrong_answers_paragraph}\n\nHere's an initial assessment of your performance:\n\n{score_feedback}\n\nBased on these results, can you provide some detailed feedback and suggestions for improvement, like what subjects to focus on, which field I excel in, and some strategies? Address me directly, and don't put any placeholders as this will be displayed directly in unformatted text form."}
+                {"role": "user", "content": f"I am {student_name}, a {specialization_name} major, and here are the details of my test. Score: {attempt.score}, Total Questions: {total_questions}, Perecentage: {score_percentage:.2f}%), Passed: {attempt.passed}\n\n{answers_paragraph}\n\nHere's an initial assessment of your performance:\n\n{score_feedback}\n\nBased on these results, can you provide some detailed feedback and suggestions for improvement if needed, like what subjects to focus on, which field I excel in, and some strategies? Address me directly, and don't put any placeholders as this will be displayed directly in unformatted text form."}
             ]
         )
+        
+        print(completion)
 
         ai_feedback = completion.choices[0].message.content.strip()
         final_feedback = f"{ai_feedback}\n\nAdditional Performance Summary:\n{score_feedback}"
