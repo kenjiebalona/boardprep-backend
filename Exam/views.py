@@ -469,7 +469,6 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             score = serializer.validated_data.get('score', instance.score)
 
-            # Generating feedback within the update method
             student = instance.student
             student_name = f"{student.first_name} {student.last_name}"
             specialization_name = student.specialization.name

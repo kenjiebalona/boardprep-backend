@@ -1,10 +1,12 @@
 from django.utils import timezone
 from django.db import models
 from django_ckeditor_5.fields import CKEditor5Field
+from User.models import Specialization
 
 from Exam.models import Exam
 
 class Course(models.Model):
+    specializations = models.ManyToManyField(Specialization, related_name='courses', default=1)  # Many-to-many relationship
     course_id = models.CharField(max_length=10, primary_key=True)
     course_title = models.CharField(max_length=200)
     short_description = models.CharField(max_length=500)
@@ -22,6 +24,28 @@ class Course(models.Model):
     def __str__(self):
         return self.course_title
 
+    def get_all_objectives(self):
+        objectives = []
+
+        # Gather objectives from lessons
+        lessons = self.lessons.all()
+        for lesson in lessons:
+            if lesson.learning_objectives:
+                objectives.append(f"Lesson {lesson.order}: {lesson.learning_objectives}")
+
+            # Gather objectives from topics
+            for topic in lesson.topics.all():
+                if topic.learning_objectives:
+                    objectives.append(f"Topic {topic.order}: {topic.learning_objectives}")
+
+                # Gather objectives from concepts
+                for concept in topic.concepts.all():
+                    if concept.learning_objectives:
+                        objectives.append(f"Concept {concept.concept_title}: {concept.learning_objectives}")
+
+        return objectives
+
+
 class Syllabus(models.Model):
     course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='syllabus')
     syllabus_id = models.CharField(max_length=10, primary_key=True)
@@ -34,9 +58,52 @@ class Lesson(models.Model):
     lesson_id = models.CharField(max_length=10, primary_key=True)
     lesson_title = models.CharField(max_length=200)
     order = models.IntegerField(help_text="Order of the lesson in the syllabus")
+    
+    learning_objectives = models.TextField(help_text="Objectives students should achieve in this lesson", null=True, blank=True)
+    skills_to_acquire = models.TextField(help_text="Skills students should develop in this lesson", null=True, blank=True)
 
     def __str__(self):
         return f"{self.lesson_title} - {self.syllabus.course.course_title}"
+    
+class Topic(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='topics')
+    topic_id = models.CharField(max_length=10, primary_key=True)
+    topic_title = models.CharField(max_length=200)
+    order = models.IntegerField(help_text="Order of the topic within the lesson")
+    description = models.TextField(blank=True, null=True)
+    
+    learning_objectives = models.TextField(help_text="Objectives for this topic", null=True, blank=True)
+    skills_to_acquire = models.TextField(help_text="Skills to acquire in this topic", null=True, blank=True)
+
+
+    def __str__(self):
+        return f"{self.topic_title} - {self.lesson.lesson_title}"
+
+class Subtopic(models.Model):
+    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='subtopics')
+    subtopic_id = models.CharField(max_length=10, primary_key=True)
+    subtopic_title = models.CharField(max_length=200)
+    order = models.IntegerField(help_text="Subtopic order within the topic")
+
+    def __str__(self):
+        return f"{self.subtopic_title} - {self.topic.topic_title}"
+
+class Concept(models.Model):
+    subtopic = models.ForeignKey(Subtopic, on_delete=models.CASCADE, related_name='concepts', null=True, blank=True)  # Optional subtopic connection
+    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='concepts', null=True, blank=True)  # Fallback to topic
+    concept_id = models.CharField(max_length=10, primary_key=True)
+    concept_title = models.CharField(max_length=200)
+    description = models.TextField()
+    difficulty = models.CharField(max_length=50, choices=[('Easy', 'Easy'), ('Medium', 'Medium'), ('Hard', 'Hard')])
+    
+    learning_objectives = models.TextField(help_text="Objectives for this concept", null=True, blank=True)
+    skills_to_acquire = models.TextField(help_text="Skills to acquire in this concept", null=True, blank=True)
+
+
+    def __str__(self):
+        return self.concept_title
+
+
     
 class StudentLessonProgress(models.Model):
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)  # Assuming you have a Student model
