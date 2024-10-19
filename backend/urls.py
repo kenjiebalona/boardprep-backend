@@ -5,7 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from Challenge.views import ChallengeViewSet, StudentChallengeAttemptViewSet
-from Course.views import CourseListViewSet, CourseDetailViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet
+from Course.views import CourseListViewSet, CourseDetailViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet
 from Class.views import ClassViewSet, PostViewSet, CommentViewSet, JoinRequestViewSet, ActivityViewSet, SubmissionViewSet, AttachmentViewSet
 from Exam.views import ExamViewSet, StudentExamAttemptViewSet
 from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
@@ -44,6 +44,11 @@ router.register(r'studentChallengeAttempt', StudentChallengeAttemptViewSet, base
 router.register(r'student-answers', StudentAnswerViewSet, basename='student-answers')
 router.register(r'student-lesson-progress', StudentLessonProgressViewSet, basename='student-lesson-progress')
 router.register(r'student-course-progress', StudentCourseProgressViewSet, basename='student-course-progress')
+router.register(r'content-blocks', ContentBlockViewSet, basename='contentblock')
+router.register(r'pages', PageViewSet, basename='page')
+router.register(r'subtopics', SubtopicViewSet, basename='subtopic')
+router.register(r'topics', TopicViewSet, basename='topic')
+
 
 # router.register(r'daily-challenges', DailyChallengeViewSet, basename='daily-challenges')
 # router.register(r'daily-challenge-questions', DailyChallengeQuestionViewSet, basename='daily-challenge-questions')

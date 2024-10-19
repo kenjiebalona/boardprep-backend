@@ -4,8 +4,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, parser_classes
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
-from .models import Course, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload, Topic, Subtopic
-from Course.serializer import CourseListSerializer, CourseDetailSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer, SubtopicSerializer, TopicSerializer
+from .models import Course, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload, Topic, Subtopic, ContentBlock
+from Course.serializer import CourseListSerializer, CourseDetailSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer, SubtopicSerializer, TopicSerializer, ContentBlockSerializer
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import FileSystemStorage
@@ -66,7 +66,7 @@ class SyllabusViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 class LessonViewSet(viewsets.ModelViewSet):
-    queryset = Lesson.objects.all().prefetch_related('pages')
+    queryset = Lesson.objects.all().prefetch_related('topics')
     serializer_class = LessonSerializer
     
     @action(detail=True, methods=['get'], url_path='topics')
@@ -94,6 +94,17 @@ class LessonViewSet(viewsets.ModelViewSet):
             serializer.save()
             return Response({'status': 'lesson updated'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class TopicViewSet(viewsets.ModelViewSet):
+    queryset = Topic.objects.all().prefetch_related('subtopics')
+    serializer_class = TopicSerializer
+
+    @action(detail=True, methods=['get'], url_path='subtopics')
+    def get_topic_subtopics(self, request, pk=None):
+        topic = self.get_object()
+        subtopics = topic.subtopics.all()
+        serializer = SubtopicSerializer(subtopics, many=True)
+        return Response(serializer.data)
 
 class SubtopicViewSet(viewsets.ModelViewSet):
     queryset = Subtopic.objects.all().prefetch_related('pages')
@@ -134,6 +145,18 @@ class PageViewSet(viewsets.ModelViewSet):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             return Response({"detail": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
 
+class ContentBlockViewSet(viewsets.ModelViewSet):
+    queryset = ContentBlock.objects.all()
+    serializer_class = ContentBlockSerializer
+
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
 
 class FileUploadViewSet(viewsets.ModelViewSet):
     queryset = FileUpload.objects.all()

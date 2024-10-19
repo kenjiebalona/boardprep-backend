@@ -12,7 +12,7 @@ class Skill(models.Model):
     text = models.CharField(max_length=500)
 
 class Course(models.Model):
-    specializations = models.ManyToManyField(Specialization, related_name='courses', default=1)  # Many-to-many relationship
+    specializations = models.ManyToManyField(Specialization, related_name='courses', default=1)  
     course_id = models.CharField(max_length=10, primary_key=True)
     course_title = models.CharField(max_length=200)
     short_description = models.CharField(max_length=500)

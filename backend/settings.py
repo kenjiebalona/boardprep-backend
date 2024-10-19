@@ -119,15 +119,13 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('AZURE_MYSQL_NAME'),
-        'USER': os.environ.get('AZURE_MYSQL_USER'),
-        'PASSWORD': os.environ.get('AZURE_MYSQL_PASSWORD'),
-        'HOST': os.environ.get('AZURE_MYSQL_HOST'),
-        'PORT': os.environ.get('AZURE_MYSQL_PORT'),
-        'OPTIONS': {
-            'init_command': 'SET sql_mode="STRICT_TRANS_TABLES"'
-        }
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('PGDATABASE'),
+        'USER': os.environ.get('PGUSER'),
+        'PASSWORD': os.environ.get('PGPASSWORD'),
+        'HOST': os.environ.get('PGHOST'),
+        'PORT': os.environ.get('PGPORT'),
+        
     }
 }
 
