@@ -4,8 +4,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, parser_classes
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
-from .models import Course, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload
-from Course.serializer import CourseListSerializer, CourseDetailSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer
+from .models import Course, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload, Topic, Subtopic
+from Course.serializer import CourseListSerializer, CourseDetailSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer, SubtopicSerializer, TopicSerializer
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import FileSystemStorage
@@ -30,12 +30,6 @@ class CourseListViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseListSerializer
 
-    # def get_queryset(self):
-    #     queryset = super().get_queryset()
-    #     queryset = queryset.annotate(hasMocktest=Exists(MockTest.objects.filter(course=OuterRef('pk'))))
-    #     return queryset
-
-
     @action(detail=False, methods=['get'], url_path='check_id/(?P<course_id>[^/.]+)')
     def check_course_id(self, request, course_id=None):
         """
@@ -52,8 +46,15 @@ class CourseListViewSet(viewsets.ModelViewSet):
         return Response({'status': 'course published'}, status=status.HTTP_200_OK)
 
 class CourseDetailViewSet(viewsets.ModelViewSet):
-    queryset = Course.objects.all()
+    queryset = Course.objects.all().prefetch_related('syllabus__lessons')
     serializer_class = CourseDetailSerializer
+
+    @action(detail=True, methods=['put'], url_path='publish')
+    def publish_course(self, request, pk=None):
+        course = self.get_object()
+        course.is_published = True
+        course.save()
+        return Response({'status': 'course published'}, status=status.HTTP_200_OK)
 
 class SyllabusViewSet(viewsets.ModelViewSet):
     queryset = Syllabus.objects.all()
@@ -67,12 +68,12 @@ class SyllabusViewSet(viewsets.ModelViewSet):
 class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.all().prefetch_related('pages')
     serializer_class = LessonSerializer
-
-    @action(detail=True, methods=['get'], url_path='pages')
-    def get_lesson_pages(self, request, pk=None):
-        lesson = self.get_object()  # This should fetch the lesson based on the provided lesson_id
-        pages = Page.objects.filter(lesson=lesson)
-        serializer = PageSerializer(pages, many=True)
+    
+    @action(detail=True, methods=['get'], url_path='topics')
+    def get_lesson_topics(self, request, pk=None):
+        lesson = self.get_object()
+        topics = lesson.topics.all()
+        serializer = TopicSerializer(topics, many=True)
         return Response(serializer.data)
 
     def by_syllabus(self, request, syllabus_id=None):
@@ -87,96 +88,52 @@ class LessonViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['put'], url_path='update_lesson')
     def update_lesson(self, request, pk):
-        try:
-            lesson = get_object_or_404(Lesson, pk=pk)
-            new_order = int(request.data.get('order', lesson.order))
-            new_title = request.data.get('lesson_title', lesson.lesson_title)
-
-            with transaction.atomic():
-                # Update the order of lessons
-                if new_order != lesson.order:
-                    if new_order < lesson.order:
-                        Lesson.objects.filter(
-                            syllabus=lesson.syllabus,
-                            order__lt=lesson.order,
-                            order__gte=new_order
-                        ).update(order=F('order') + 1)
-                    else:
-                        Lesson.objects.filter(
-                            syllabus=lesson.syllabus,
-                            order__gt=lesson.order,
-                            order__lte=new_order
-                        ).update(order=F('order') - 1)
-
-                # Update the lesson's order and title
-                lesson.order = new_order
-                lesson.lesson_title = new_title
-                lesson.save()
-
+        lesson = get_object_or_404(Lesson, pk=pk)
+        serializer = self.get_serializer(lesson, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
             return Response({'status': 'lesson updated'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        except (ValueError, TypeError) as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+class SubtopicViewSet(viewsets.ModelViewSet):
+    queryset = Subtopic.objects.all().prefetch_related('pages')
+    serializer_class = SubtopicSerializer
 
+    @action(detail=True, methods=['get'], url_path='pages')
+    def get_subtopic_pages(self, request, pk=None):
+        subtopic = self.get_object()
+        pages = subtopic.pages.all()
+        serializer = PageSerializer(pages, many=True)
+        return Response(serializer.data)
 
 class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
     serializer_class = PageSerializer
     lookup_field = 'page_number'  # Specify the lookup field
 
-    @action(detail=False, methods=['get', 'post', 'put'], url_path='(?P<lesson_id>[^/.]+)')
-    def by_lesson(self, request, lesson_id=None):
+    @action(detail=False, methods=['get', 'post', 'put'], url_path='(?P<subtopic_id>[^/.]+)')
+    def by_subtopic(self, request, subtopic_id=None):
         if request.method == 'GET':
-            # Handle GET requests
-            pages = self.queryset.filter(lesson_id=lesson_id)
+            pages = self.queryset.filter(subtopic_id=subtopic_id)
             serializer = self.get_serializer(pages, many=True)
             return Response(serializer.data)
         elif request.method == 'POST':
-            # Handle POST requests
             serializer = self.get_serializer(data=request.data)
             if serializer.is_valid():
-                serializer.save()
+                serializer.save(subtopic_id=subtopic_id)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         elif request.method == 'PUT':
-            # Handle PUT requests
-            # You need to extract 'page_number' from the request data or URL, for example:
-            page_number = request.data.get('page_number')  # Adjust this based on your data structure
-            # Then, you can update the specific page
-            page = Page.objects.filter(lesson_id=lesson_id, page_number=page_number).first()
+            page_number = request.data.get('page_number')
+            page = Page.objects.filter(subtopic_id=subtopic_id, page_number=page_number).first()
             if page:
                 serializer = self.get_serializer(page, data=request.data)
                 if serializer.is_valid():
                     serializer.save()
                     return Response(serializer.data)
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                return Response({"detail": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
 
-
-    @action(detail=False, methods=['get', 'put', 'delete'],
-            url_path='(?P<lesson_id>[^/.]+)/(?P<page_number>[^/.]+)')
-    def by_lesson_and_page(self, request, lesson_id=None, page_number=None):
-        if request.method == 'GET':
-            # Handle GET requests
-            page = get_object_or_404(self.queryset, lesson_id=lesson_id, page_number=page_number)
-            serializer = self.serializer_class(page)
-            return Response(serializer.data)
-        elif request.method == 'PUT':
-            # Handle PUT requests
-            page = get_object_or_404(self.queryset, lesson_id=lesson_id, page_number=page_number)
-            serializer = self.serializer_class(page, data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        elif request.method == 'DELETE':
-            # Handle DELETE requests
-            page = get_object_or_404(self.queryset, lesson_id=lesson_id, page_number=page_number)
-            page.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        else:
-            return Response({"detail": "Invalid request method."}, status=status.HTTP_400_BAD_REQUEST)
 
 class FileUploadViewSet(viewsets.ModelViewSet):
     queryset = FileUpload.objects.all()

@@ -3,73 +3,45 @@ from django.conf import settings
 from rest_framework import serializers
 
 from Quiz.models import Quiz
-from .models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson, Page, FileUpload
+from .models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson, Page, Topic, Subtopic, ContentBlock,FileUpload
 from Exam.models import Exam
 from datetime import datetime
 import time
 
+class ContentBlockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContentBlock
+        fields = '__all__'
+
 class PageSerializer(serializers.ModelSerializer):
+    content_blocks = ContentBlockSerializer(many=True, read_only=True)
     class Meta:
         model = Page
-        fields = "__all__"
-
-class LessonSerializer(serializers.ModelSerializer):
+        fields = ['subtopic', 'page_number', 'content_blocks']
+        
+class SubtopicSerializer(serializers.ModelSerializer):
     pages = PageSerializer(many=True, read_only=True)
 
     class Meta:
+        model = Subtopic
+        fields = ['topic', 'subtopic_title', 'order', 'learning_objectives', 'skills_to_acquire', 'pages']
+
+
+class TopicSerializer(serializers.ModelSerializer):
+    subtopics = SubtopicSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Topic
+        fields = ['lesson', 'topic_title', 'order', 'learning_objectives', 'skills_to_acquire', 'subtopics']
+
+
+class LessonSerializer(serializers.ModelSerializer):
+    topics = TopicSerializer(many=True, read_only=True)
+
+    class Meta:
         model = Lesson
-        fields = "__all__"
-        read_only_fields = ('lesson_id',)  # Set lesson_id as read-only
-
-    def create(self, validated_data):
-        lesson_id = self.generate_lesson_id()
-        order = validated_data.get('order')
-        syllabus_id = validated_data.get('syllabus')
-
-        # Check if any existing lesson has the same order
-        existing_lesson = Lesson.objects.filter(syllabus=syllabus_id, order=order).first()
-
-        if existing_lesson:
-            # Increment the order of the existing lesson and any subsequent lessons
-            lessons_to_update = Lesson.objects.filter(syllabus=syllabus_id, order__gte=order)
-            for lesson in lessons_to_update:
-                lesson.order += 1
-                lesson.save()
-
-        lesson = Lesson.objects.create(lesson_id=lesson_id, **validated_data)
-        return lesson
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        content = data.get('content')
-
-        if content:
-            soup = BeautifulSoup(content, 'html.parser')
-            images = soup.find_all('img')
-            for img in images:
-                if img['src'].startswith('/'):
-                    img['src'] = settings.SITE_URL + img['src']
-
-            data['content'] = str(soup)
-        return data
-
-    @staticmethod
-    def generate_lesson_id():
-        # Using current time in milliseconds, converted to base 36
-        timestamp = int(time.time() * 1000)
-        lesson_id = base36_encode(timestamp)
-        return lesson_id[:7]  # Truncate to 5 characters
-
-def base36_encode(number):
-    assert number >= 0, 'Positive integer required'
-    if number == 0:
-        return '0'
-    base36 = ''
-    while number != 0:
-        number, i = divmod(number, 36)
-        base36 = '0123456789abcdefghijklmnopqrstuvwxyz'[i] + base36
-    return base36
-
+        fields = ['syllabus',  'lesson_title', 'order', 'learning_objectives', 'skills_to_acquire', 'topics']
+        
 class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = FileUpload
@@ -82,22 +54,15 @@ class SyllabusSerializer(serializers.ModelSerializer):
         model = Syllabus
         fields = '__all__'
 
-class CourseListSerializer(serializers.ModelSerializer):
-    syllabus = SyllabusSerializer(read_only=True)
-
-    class Meta:
-        model = Course
-        fields = ['course_id', 'course_title', 'short_description', 'image', 'syllabus', 'is_published']
-
     def create(self, validated_data):
         course = Course.objects.create(**validated_data)
-        syllabus_id = generate_syllabus_id(course)  # Use the function
+        syllabus_id = generate_syllabus_id(course) 
         Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
         return course
 
 def generate_syllabus_id(course):
-    timestamp = datetime.now().strftime("%H%M%S")  # HHMMSS format
-    syllabus_id = (course.course_id[:4] + timestamp)[:10]  # Ensure it's only 10 characters
+    timestamp = datetime.now().strftime("%H%M%S") 
+    syllabus_id = (course.course_id[:4] + timestamp)[:10]  
     return syllabus_id
 
 class CourseDetailSerializer(serializers.ModelSerializer):
@@ -122,3 +87,16 @@ class StudentCourseProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentCourseProgress
         fields = ['id', 'student', 'course', 'is_completed', 'completion_date']
+
+class CourseListSerializer(serializers.ModelSerializer):
+    syllabus = SyllabusSerializer(read_only=True)
+
+    class Meta:
+        model = Course
+        fields = ['course_id', 'course_title', 'short_description', 'image', 'syllabus', 'is_published']
+
+    def create(self, validated_data):
+        course = Course.objects.create(**validated_data)
+        syllabus_id = generate_syllabus_id(course)  # Use the function
+        Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
+        return course

@@ -5,6 +5,12 @@ from User.models import Specialization
 
 from Exam.models import Exam
 
+class Objective(models.Model):
+    text = models.CharField(max_length=500)
+
+class Skill(models.Model):
+    text = models.CharField(max_length=500)
+
 class Course(models.Model):
     specializations = models.ManyToManyField(Specialization, related_name='courses', default=1)  # Many-to-many relationship
     course_id = models.CharField(max_length=10, primary_key=True)
@@ -12,7 +18,7 @@ class Course(models.Model):
     short_description = models.CharField(max_length=500)
     long_description = models.TextField()
     image = models.ImageField(upload_to='images/', default='default.png')
-    is_published = models.BooleanField(default=False)  # New field
+    is_published = models.BooleanField(default=False)  
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding  
@@ -38,13 +44,7 @@ class Course(models.Model):
                 if topic.learning_objectives:
                     objectives.append(f"Topic {topic.order}: {topic.learning_objectives}")
 
-                # Gather objectives from concepts
-                for concept in topic.concepts.all():
-                    if concept.learning_objectives:
-                        objectives.append(f"Concept {concept.concept_title}: {concept.learning_objectives}")
-
         return objectives
-
 
 class Syllabus(models.Model):
     course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='syllabus')
@@ -55,56 +55,73 @@ class Syllabus(models.Model):
 
 class Lesson(models.Model):
     syllabus = models.ForeignKey(Syllabus, on_delete=models.CASCADE, related_name='lessons')
-    lesson_id = models.CharField(max_length=10, primary_key=True)
     lesson_title = models.CharField(max_length=200)
-    order = models.IntegerField(help_text="Order of the lesson in the syllabus")
+    order = models.IntegerField()
     
-    learning_objectives = models.TextField(help_text="Objectives students should achieve in this lesson", null=True, blank=True)
-    skills_to_acquire = models.TextField(help_text="Skills students should develop in this lesson", null=True, blank=True)
+    learning_objectives = models.ManyToManyField(Objective, related_name='lessons', blank=True)
+    skills_to_acquire = models.ManyToManyField(Skill, related_name='lessons', blank=True)
+
 
     def __str__(self):
         return f"{self.lesson_title} - {self.syllabus.course.course_title}"
     
 class Topic(models.Model):
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='topics')
-    topic_id = models.CharField(max_length=10, primary_key=True)
     topic_title = models.CharField(max_length=200)
-    order = models.IntegerField(help_text="Order of the topic within the lesson")
+    order = models.IntegerField()
     description = models.TextField(blank=True, null=True)
     
-    learning_objectives = models.TextField(help_text="Objectives for this topic", null=True, blank=True)
-    skills_to_acquire = models.TextField(help_text="Skills to acquire in this topic", null=True, blank=True)
-
+    learning_objectives = models.ManyToManyField(Objective, related_name='topics', blank=True)
+    skills_to_acquire = models.ManyToManyField(Skill, related_name='topics', blank=True)
 
     def __str__(self):
         return f"{self.topic_title} - {self.lesson.lesson_title}"
 
 class Subtopic(models.Model):
     topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='subtopics')
-    subtopic_id = models.CharField(max_length=10, primary_key=True)
     subtopic_title = models.CharField(max_length=200)
-    order = models.IntegerField(help_text="Subtopic order within the topic")
+    order = models.IntegerField()
 
     def __str__(self):
         return f"{self.subtopic_title} - {self.topic.topic_title}"
 
-class Concept(models.Model):
-    subtopic = models.ForeignKey(Subtopic, on_delete=models.CASCADE, related_name='concepts', null=True, blank=True)  # Optional subtopic connection
-    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='concepts', null=True, blank=True)  # Fallback to topic
-    concept_id = models.CharField(max_length=10, primary_key=True)
-    concept_title = models.CharField(max_length=200)
-    description = models.TextField()
-    difficulty = models.CharField(max_length=50, choices=[('Easy', 'Easy'), ('Medium', 'Medium'), ('Hard', 'Hard')])
-    
-    learning_objectives = models.TextField(help_text="Objectives for this concept", null=True, blank=True)
-    skills_to_acquire = models.TextField(help_text="Skills to acquire in this concept", null=True, blank=True)
+class Page(models.Model):
+    subtopic = models.ForeignKey(Subtopic, on_delete=models.CASCADE, related_name='pages')
+    page_number = models.IntegerField()
 
+    class Meta:
+        ordering = ['page_number']
+        unique_together = ('subtopic', 'page_number')
 
     def __str__(self):
-        return self.concept_title
-
-
+        return f"Page {self.page_number} - {self.lesson.lesson_title}"
     
+class ContentBlock(models.Model):
+    BLOCK_TYPE_CHOICES = [
+        ('objective', 'Objective'),
+        ('lesson', 'Lesson Content'),
+        ('example', 'Example'),
+    ]
+
+    DIFFICULTY_CHOICES = [
+        ('beginner', 'Beginner'),
+        ('intermediate', 'Intermediate'),
+        ('advanced', 'Advanced'),
+    ]
+
+    page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name='content_blocks')
+    block_type = models.CharField(max_length=50, choices=BLOCK_TYPE_CHOICES)
+    difficulty = models.CharField(max_length=50, choices=DIFFICULTY_CHOICES)
+    content = models.TextField()
+
+    def __str__(self):
+        return f"{self.get_block_type_display()} ({self.get_difficulty_display()}) - {self.page.subtopic.subtopic_title}"
+
+class FileUpload(models.Model):
+    file = models.FileField(upload_to='uploads/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+
 class StudentLessonProgress(models.Model):
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)  # Assuming you have a Student model
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
@@ -130,21 +147,4 @@ class StudentCourseProgress(models.Model):
             self.is_completed = True
             self.completion_date = timezone.now()
             self.save()
-
-class Page(models.Model):
-    syllabus = models.ForeignKey(Syllabus, on_delete=models.CASCADE, related_name='pages_by_syllabus')
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='pages')
-    page_number = models.IntegerField(help_text="Page number within the lesson")
-    content = CKEditor5Field('Content', config_name='extends')
-
-    class Meta:
-        ordering = ['page_number']
-        unique_together = ('lesson', 'page_number')
-
-    def __str__(self):
-        return f"Page {self.page_number} - {self.lesson.lesson_title}"
-
-class FileUpload(models.Model):
-    file = models.FileField(upload_to='uploads/')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
+            
