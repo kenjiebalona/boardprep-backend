@@ -24,7 +24,7 @@ class SubtopicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Subtopic
-        fields = ['topic', 'subtopic_title', 'order', 'learning_objectives', 'skills_to_acquire', 'pages']
+        fields = ['topic', 'subtopic_title', 'order', 'pages']
 
 
 class TopicSerializer(serializers.ModelSerializer):

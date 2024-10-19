@@ -19,14 +19,6 @@ class Course(models.Model):
     long_description = models.TextField()
     image = models.ImageField(upload_to='images/', default='default.png')
     is_published = models.BooleanField(default=False)  
-
-    def save(self, *args, **kwargs):
-        is_new = self._state.adding  
-        super().save(*args, **kwargs)
-        
-        if is_new:  
-            Exam.objects.create(course=self, title=f"{self.course_title} Exam")
-
     def __str__(self):
         return self.course_title
 
