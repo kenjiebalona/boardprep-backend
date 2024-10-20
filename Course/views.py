@@ -114,8 +114,34 @@ class PageViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get', 'post', 'put'], url_path='(?P<subtopic_id>[^/.]+)')
     def by_subtopic(self, request, subtopic_id=None):
+        student_id = request.query_params.get('student_id', None) # optional ra ni for mastery
+
         if request.method == 'GET':
             pages = self.queryset.filter(subtopic_id=subtopic_id)
+
+            if student_id:
+                try:
+                    mastery = StudentMastery.objects.get(student_id=student_id, subtopic_id=subtopic_id).mastery_level
+                    
+                    # Pwede pani mamodify kung asa ka na sa mastery level
+                    if mastery < 50.0:
+                        difficulty_level = 'beginner'
+                    elif mastery < 80.0:
+                        difficulty_level = 'intermediate'
+                    else:
+                        difficulty_level = 'advanced'
+
+                    # Filter sa pages based sa mastery level
+                    pages = pages.prefetch_related(
+                        models.Prefetch(
+                            'content_blocks',
+                            queryset=ContentBlock.objects.filter(difficulty=difficulty_level)
+                        )
+                    )
+
+                except StudentMastery.DoesNotExist:
+                    return Response({"detail": "Mastery record not found for the student."}, status=status.HTTP_404_NOT_FOUND)
+
             serializer = self.get_serializer(pages, many=True)
             return Response(serializer.data)
         elif request.method == 'POST':
