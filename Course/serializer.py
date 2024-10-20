@@ -14,6 +14,9 @@ class ContentBlockSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentBlock
         fields = '__all__'
+    
+    def create(self, validated_data):
+        return ContentBlock.objects.create(**validated_data)
 
 class PageSerializer(serializers.ModelSerializer):
     content_blocks = ContentBlockSerializer(many=True, read_only=True)
