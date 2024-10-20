@@ -34,3 +34,8 @@ class ContentCreatorSerializer(UserSerializer):
         model = ContentCreator
         fields = ['user_name', 'password', 'first_name', 'last_name', 'email', 'registration_date', 'last_login', 'specialization', 'institution_id', 'is_premium']
         read_only_fields = ('registration_date', 'last_login')
+
+class SpecializationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Specialization
+        fields = ['id', 'name']

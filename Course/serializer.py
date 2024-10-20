@@ -8,6 +8,8 @@ from Exam.models import Exam
 from datetime import datetime
 import time
 
+from User.models import Specialization
+
 class ContentBlockSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentBlock
@@ -65,18 +67,41 @@ def generate_syllabus_id(course):
     syllabus_id = (course.course_id[:4] + timestamp)[:10]  
     return syllabus_id
 
-class CourseDetailSerializer(serializers.ModelSerializer):
+class CourseSerializer(serializers.ModelSerializer):
     syllabus = SyllabusSerializer(read_only=True)
+    specializations = serializers.PrimaryKeyRelatedField(
+        queryset=Specialization.objects.all(), many=True
+    )
 
     class Meta:
         model = Course
-        fields = '__all__'
+        fields = [
+            'course_id', 
+            'course_title', 
+            'short_description', 
+            'image', 
+            'syllabus', 
+            'is_published', 
+            'specializations'
+        ]
 
     def create(self, validated_data):
+        specializations = validated_data.pop('specializations', [])
         course = Course.objects.create(**validated_data)
-        syllabus_id = generate_syllabus_id(course)  # Use the function
+        syllabus_id = generate_syllabus_id(course)  
         Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
+        
+        course.specializations.set(specializations)
         return course
+
+    def update(self, instance, validated_data):
+        specializations = validated_data.pop('specializations', None)
+        instance = super().update(instance, validated_data)
+        
+        if specializations is not None:
+            instance.specializations.set(specializations)
+        return instance
+
 
 class StudentLessonProgressSerializer(serializers.ModelSerializer):
     class Meta:
@@ -88,15 +113,3 @@ class StudentCourseProgressSerializer(serializers.ModelSerializer):
         model = StudentCourseProgress
         fields = ['id', 'student', 'course', 'is_completed', 'completion_date']
 
-class CourseListSerializer(serializers.ModelSerializer):
-    syllabus = SyllabusSerializer(read_only=True)
-
-    class Meta:
-        model = Course
-        fields = ['course_id', 'course_title', 'short_description', 'image', 'syllabus', 'is_published']
-
-    def create(self, validated_data):
-        course = Course.objects.create(**validated_data)
-        syllabus_id = generate_syllabus_id(course)  # Use the function
-        Syllabus.objects.create(course=course, syllabus_id=syllabus_id)
-        return course

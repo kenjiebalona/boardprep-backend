@@ -12,11 +12,10 @@ class Skill(models.Model):
     text = models.CharField(max_length=500)
 
 class Course(models.Model):
-    specializations = models.ManyToManyField(Specialization, related_name='courses', default=1)  
+    specializations = models.ManyToManyField(Specialization, related_name='courses')  
     course_id = models.CharField(max_length=10, primary_key=True)
     course_title = models.CharField(max_length=200)
     short_description = models.CharField(max_length=500)
-    long_description = models.TextField()
     image = models.ImageField(upload_to='images/', default='default.png')
     is_published = models.BooleanField(default=False)  
     def __str__(self):

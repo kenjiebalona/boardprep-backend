@@ -5,19 +5,18 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from Challenge.views import ChallengeViewSet, StudentChallengeAttemptViewSet
-from Course.views import CourseListViewSet, CourseDetailViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet
+from Course.views import CourseViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet
 from Class.views import ClassViewSet, PostViewSet, CommentViewSet, JoinRequestViewSet, ActivityViewSet, SubmissionViewSet, AttachmentViewSet
 from Exam.views import ExamViewSet, StudentExamAttemptViewSet
 from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
 from Quiz.views import QuizViewSet, StudentQuizAttemptViewSet
-from User.views import StudentViewSet, TeacherViewSet
+from User.views import StudentViewSet, TeacherViewSet, SpecializationViewSet
 from Course import views
 
 
 
 router = routers.DefaultRouter()
-router.register(r'courses', CourseListViewSet, basename='course')
-router.register(r'course/details', CourseDetailViewSet, basename='coursedetail')
+router.register(r'courses', CourseViewSet, basename='course')
 router.register(r'syllabi', SyllabusViewSet, basename='syllabus')
 router.register(r'lessons', LessonViewSet, basename='lesson')
 router.register(r'pages', PageViewSet, basename='pages')
@@ -48,6 +47,7 @@ router.register(r'content-blocks', ContentBlockViewSet, basename='contentblock')
 router.register(r'pages', PageViewSet, basename='page')
 router.register(r'subtopics', SubtopicViewSet, basename='subtopic')
 router.register(r'topics', TopicViewSet, basename='topic')
+router.register(r'specializations', SpecializationViewSet, basename='specialization')
 
 
 # router.register(r'daily-challenges', DailyChallengeViewSet, basename='daily-challenges')

@@ -5,7 +5,7 @@ from rest_framework.decorators import action, parser_classes
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from .models import Course, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload, Topic, Subtopic, ContentBlock
-from Course.serializer import CourseListSerializer, CourseDetailSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer, SubtopicSerializer, TopicSerializer, ContentBlockSerializer
+from Course.serializer import CourseSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer, SubtopicSerializer, TopicSerializer, ContentBlockSerializer
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import FileSystemStorage
@@ -26,9 +26,9 @@ def upload_image(request):
         return JsonResponse({'url': uploaded_file_url})
     return JsonResponse({'error': 'Failed to upload file'}, status=400)
 
-class CourseListViewSet(viewsets.ModelViewSet):
+class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
-    serializer_class = CourseListSerializer
+    serializer_class = CourseSerializer
 
     @action(detail=False, methods=['get'], url_path='check_id/(?P<course_id>[^/.]+)')
     def check_course_id(self, request, course_id=None):
@@ -37,17 +37,6 @@ class CourseListViewSet(viewsets.ModelViewSet):
         """
         course_exists = Course.objects.filter(course_id=course_id).exists()
         return Response({'exists': course_exists})
-
-    @action(detail=True, methods=['put'])
-    def publish(self, request, pk=None):
-        course = self.get_object()
-        course.is_published = True
-        course.save()
-        return Response({'status': 'course published'}, status=status.HTTP_200_OK)
-
-class CourseDetailViewSet(viewsets.ModelViewSet):
-    queryset = Course.objects.all().prefetch_related('syllabus__lessons')
-    serializer_class = CourseDetailSerializer
 
     @action(detail=True, methods=['put'], url_path='publish')
     def publish_course(self, request, pk=None):

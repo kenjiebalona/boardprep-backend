@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import AuthenticationFailed
-from .serializers import StudentSerializer, TeacherSerializer, UserSerializer, ContentCreatorSerializer
+from .serializers import StudentSerializer, TeacherSerializer, UserSerializer, ContentCreatorSerializer, SpecializationSerializer
 from .models import Student, Teacher, User, Specialization, ContentCreator
 import jwt, datetime
 
@@ -224,3 +224,7 @@ class UpdateUser(APIView):
             serializer.save()
             return Response(serializer.data, status=200)
         return Response(serializer.errors, status=404)
+
+class SpecializationViewSet(viewsets.ModelViewSet):
+    queryset = Specialization.objects.all()
+    serializer_class = SpecializationSerializer
