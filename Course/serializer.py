@@ -19,25 +19,28 @@ class ContentBlockSerializer(serializers.ModelSerializer):
         return ContentBlock.objects.create(**validated_data)
 
 class PageSerializer(serializers.ModelSerializer):
+    page_id = serializers.ReadOnlyField(source='id')
     content_blocks = ContentBlockSerializer(many=True, read_only=True)
     class Meta:
         model = Page
-        fields = ['subtopic', 'page_number', 'content_blocks']
+        fields = ['subtopic', 'page_id', 'page_number', 'content_blocks']
         
 class SubtopicSerializer(serializers.ModelSerializer):
     pages = PageSerializer(many=True, read_only=True)
+    subtopic_id = serializers.ReadOnlyField(source='id')
 
     class Meta:
         model = Subtopic
-        fields = ['topic', 'subtopic_title', 'order', 'pages']
+        fields = ['topic', 'subtopic_id', 'subtopic_title', 'order', 'pages']
 
 
 class TopicSerializer(serializers.ModelSerializer):
     subtopics = SubtopicSerializer(many=True, read_only=True)
+    topic_id = serializers.ReadOnlyField(source='id')
 
     class Meta:
         model = Topic
-        fields = ['lesson', 'topic_title', 'order', 'learning_objectives', 'skills_to_acquire', 'subtopics']
+        fields = ['lesson', 'topic_id', 'topic_title', 'order', 'learning_objectives', 'skills_to_acquire', 'subtopics']
 
 
 class LessonSerializer(serializers.ModelSerializer):
