@@ -59,8 +59,26 @@ class StudentMastery(models.Model):
     def __str__(self):
         return f"{self.student.user_name} - {self.subtopic.subtopic_title} - Mastery: {self.mastery_level}%"
 
-    def update_mastery(self):
-        # todo
+    def update_mastery(self, answers):
+        student_mastery = 0
+        total_mastery = 0
+        weights = { # weights for each difficulty pwede pa ma adjust
+            1: 0.5,
+            2: 0.75,
+            3: 1
+        }
+
+        for answer in answers:
+            student_mastery += weights[answer.question.difficulty] * answer.is_correct
+            total_mastery += weights[answer.question.difficulty]
+
+        avg_mastery = (student_mastery / total_mastery) * 100
+
+        if self.mastery_level:
+            self.mastery_level = (self.mastery_level + avg_mastery) / 2
+        else:
+            self.mastery_level = avg_mastery
+
         self.save()
 
 class Teacher(User):
