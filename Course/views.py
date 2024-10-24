@@ -110,7 +110,7 @@ class SubtopicViewSet(viewsets.ModelViewSet):
 class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
     serializer_class = PageSerializer
-    lookup_field = 'page_number'  # Specify the lookup field
+    lookup_field = 'page_number'  
 
     @action(detail=False, methods=['get', 'post', 'put'], url_path='(?P<subtopic_id>[^/.]+)')
     def by_subtopic(self, request, subtopic_id=None):
@@ -161,12 +161,16 @@ class PageViewSet(viewsets.ModelViewSet):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             return Response({"detail": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
         
-    @action(detail=True, methods=['get'], url_path='content-blocks')
-    def get_page_content_blocks(self, request, pk=None):
-        page = self.get_object()
-        content_blocks = ContentBlock.objects.filter(page=page)
-        serializer = ContentBlockSerializer(content_blocks, many=True)
-        return Response(serializer.data)
+    @action(detail=True, methods=['get'])
+    def content_blocks(self, request, page_number=None):
+        try:
+            page = get_object_or_404(Page, page_number=page_number)
+            content_blocks = ContentBlock.objects.filter(page=page)
+            serializer = ContentBlockSerializer(content_blocks, many=True)
+            return Response(serializer.data)
+        except Page.DoesNotExist:
+            return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+
 
 class ContentBlockViewSet(viewsets.ModelViewSet):
     queryset = ContentBlock.objects.all()
@@ -175,12 +179,10 @@ class ContentBlockViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         with transaction.atomic():
             content_blocks = request.data.get("blocks", [])
-            page_id = request.data.get("page")
-            
-            page = get_object_or_404(Page, pk=page_id)
-
             created_blocks = []
             for block_data in content_blocks:
+                page_id = block_data.get("page")
+                page = get_object_or_404(Page, pk=page_id)
                 block_serializer = self.get_serializer(data=block_data)
                 if block_serializer.is_valid():
                     block = block_serializer.save(page=page)

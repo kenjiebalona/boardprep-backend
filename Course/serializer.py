@@ -11,9 +11,10 @@ import time
 from User.models import Specialization
 
 class ContentBlockSerializer(serializers.ModelSerializer):
+    block_id = serializers.ReadOnlyField(source='id')
     class Meta:
         model = ContentBlock
-        fields = '__all__'
+        fields = ['block_id', 'block_type', 'difficulty', 'content', 'file', 'page'] 
     
     def create(self, validated_data):
         return ContentBlock.objects.create(**validated_data)

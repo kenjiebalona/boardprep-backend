@@ -85,7 +85,7 @@ class Page(models.Model):
         unique_together = ('subtopic', 'page_number')
 
     def __str__(self):
-        return f"Page {self.page_number} - {self.lesson.lesson_title}"
+        return f"Page {self.page_number} - {self.subtopic.subtopic_title}"
     
 class ContentBlock(models.Model):
     BLOCK_TYPE_CHOICES = [
