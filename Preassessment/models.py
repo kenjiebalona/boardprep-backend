@@ -19,6 +19,7 @@ class Preassessment(QuestionGenerator):
 
 
 class StudentPreassessmentAttempt(models.Model):
+    preassessmentID = models.BigAutoField(primary_key=True)
     preassessment = models.ForeignKey(Preassessment, on_delete=models.CASCADE, related_name='preassessment')
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE, related_name='preassessment_scores')
     score = models.FloatField()
