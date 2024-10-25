@@ -23,7 +23,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Question
-        fields = ['id', 'lesson', 'text', 'difficulty', 'choices', 'attachments']
+        fields = ['id', 'subtopic', 'text', 'difficulty', 'choices', 'attachments']
 
     def create(self, validated_data):
         choices_data = validated_data.pop('choices')
@@ -39,7 +39,7 @@ class QuestionSerializer(serializers.ModelSerializer):
         choices_data = validated_data.pop('choices', None)
         attachments_data = validated_data.pop('attachments', None)
 
-        instance.lesson = validated_data.get('lesson', instance.lesson)
+        instance.subtopic = validated_data.get('subtopic', instance.subtopic)
         instance.text = validated_data.get('text', instance.text)
         instance.difficulty = validated_data.get('difficulty', instance.difficulty)
         instance.save()
