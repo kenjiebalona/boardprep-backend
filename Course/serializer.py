@@ -72,11 +72,12 @@ class TopicSerializer(serializers.ModelSerializer):
 
 
 class LessonSerializer(serializers.ModelSerializer):
+    lesson_id = serializers.ReadOnlyField(source='id')
     topics = TopicSerializer(many=True, read_only=True)
 
     class Meta:
         model = Lesson
-        fields = ['syllabus',  'lesson_title', 'order', 'learning_objectives', 'skills_to_acquire', 'topics']
+        fields = ['syllabus', 'lesson_id', 'lesson_title', 'order', 'learning_objectives', 'skills_to_acquire', 'topics']
         
 class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
