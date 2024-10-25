@@ -1,17 +1,18 @@
 from rest_framework import serializers
-from .models import Question, Choice, StudentAnswer
 
-class QuestionSerializer(serializers.ModelSerializer):
+from Question.serializer import QuestionSerializer
+from .models import Preassessment, StudentPreassessmentAttempt
+
+
+class PreassessmentSerializer(serializers.ModelSerializer):
+    questions = QuestionSerializer(many=True)
+
     class Meta:
-        model = Question
+        model = Preassessment
         fields = '__all__'
 
-class ChoiceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Choice
-        fields = '__all__'
 
-class StudentAnswerSerializer(serializers.ModelSerializer):
+class StudentPreassessmentAttemptSerializer(serializers.ModelSerializer):
     class Meta:
-        model = StudentAnswer
+        model = StudentPreassessmentAttempt
         fields = '__all__'

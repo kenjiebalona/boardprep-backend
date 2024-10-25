@@ -11,7 +11,7 @@ from Exam.views import ExamViewSet, StudentExamAttemptViewSet
 from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
 from Quiz.views import QuizViewSet, StudentQuizAttemptViewSet
 from User.views import StudentViewSet, TeacherViewSet, SpecializationViewSet
-from Preassessment.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
+from Preassessment.views import PreassessmentViewSet, StudentPreassessmentAttemptViewSet
 from Course import views
 
 
@@ -49,7 +49,7 @@ router.register(r'pages', PageViewSet, basename='page')
 router.register(r'subtopics', SubtopicViewSet, basename='subtopic')
 router.register(r'topics', TopicViewSet, basename='topic')
 router.register(r'specializations', SpecializationViewSet, basename='specialization')
-router.register(r'preassessment', QuestionViewSet, basename='preassessment-question')
+router.register(r'preassessment', PreassessmentViewSet, basename='preassessment')
 
 
 # router.register(r'daily-challenges', DailyChallengeViewSet, basename='daily-challenges')

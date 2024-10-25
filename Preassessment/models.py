@@ -1,28 +1,34 @@
 from django.db import models
-from Question.models import Question as ExistingQuestion, Choice as ExistingChoice, StudentAnswer as ExistingStudentAnswer
-from Class.models import Attachment
+from django.utils import timezone
+from Question.models import Question, QuestionGenerator
 
 
 # Create your models here.
-class Question(ExistingQuestion):
-    is_preassessment = models.BooleanField(default=True)
-    preassessment_attachments = models.ManyToManyField(Attachment, blank=True, related_name='preassessment_questions')
-    
+class Preassessment(Question):
+    preassessmentID = models.BigAutoField(primary_key=True)
+    date = models.DateField(default=timezone.now, unique=True)
 
     def __str__(self):
-        difficulty_label = dict(self._meta.get_field('difficulty').choices).get(self.difficulty, 'Unknown')
-        return f"Question ID: {self.id} - Difficulty: {difficulty_label} - Text: {self.text[:50]}..."
+        return f"Pre Assessment ID: {self.preassessmentID}"
+
+    def generate_questions(self, num_easy, num_medium, num_hard):
+        questions = super().generate_questions(num_easy, num_medium, num_hard)
+        self.questions.set(questions)
+        self.save()
+        return questions
 
 
-class Choice(ExistingChoice):
+class StudentPreassessmentAttempt(models.Model):
+    leaderboardID = models.BigAutoField(primary_key=True)
+    preassessment = models.ForeignKey(Preassessment, on_delete=models.CASCADE, related_name='preassessment')
+    student = models.ForeignKey('User.Student', on_delete=models.CASCADE, related_name='preassessment_scores')
+    score = models.FloatField()
+    start_time = models.DateTimeField(default=timezone.now)
+    end_time = models.DateTimeField(null=True, blank=True)
+    total_questions = models.IntegerField()
+
+    class Meta:
+        unique_together = ['preassessment', 'student']
+
     def __str__(self):
-        return f"Choice ID: {self.id} - Question ID: {self.question.id} - Text: {self.text} - Correct: {self.is_correct}"
-
-
-class StudentAnswer(ExistingStudentAnswer):
-    # Inherits from ExistingStudentAnswer
-    def __str__(self):
-        student_id = self.student.user_name if self.student else "None"
-        question_id = self.question.id if self.question else "None"
-        choice_id = self.selected_choice.id if self.selected_choice else "None"
-        return f"Student: {student_id} - Question: {question_id} - Choice: {choice_id} - Correct: {self.is_correct}"
+        return f"{self.student} - {self.preassessment} - {self.score}"
