@@ -36,6 +36,12 @@ class QuestionViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['get'])
+    def preassessment(self, request, *args, **kwargs):
+        queryset = self.queryset.filter(is_preassessment=True)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
