@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'Exam',
     'Challenge',
     'Discussion',
+    'Preassessment',
     'rest_framework',
     'storages',
     'django_ckeditor_5',
