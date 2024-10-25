@@ -4,7 +4,7 @@ from Question.models import Question, QuestionGenerator
 
 
 # Create your models here.
-class Preassessment(Question):
+class Preassessment(QuestionGenerator):
     preassessmentID = models.BigAutoField(primary_key=True)
     date = models.DateField(default=timezone.now, unique=True)
 
@@ -19,7 +19,6 @@ class Preassessment(Question):
 
 
 class StudentPreassessmentAttempt(models.Model):
-    leaderboardID = models.BigAutoField(primary_key=True)
     preassessment = models.ForeignKey(Preassessment, on_delete=models.CASCADE, related_name='preassessment')
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE, related_name='preassessment_scores')
     score = models.FloatField()
