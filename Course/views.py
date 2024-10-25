@@ -110,7 +110,6 @@ class SubtopicViewSet(viewsets.ModelViewSet):
 class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
     serializer_class = PageSerializer
-    lookup_field = 'page_number'  
 
     @action(detail=False, methods=['get', 'post', 'put'], url_path='(?P<subtopic_id>[^/.]+)')
     def by_subtopic(self, request, subtopic_id=None):
@@ -161,15 +160,16 @@ class PageViewSet(viewsets.ModelViewSet):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             return Response({"detail": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
         
-    @action(detail=True, methods=['get'])
-    def content_blocks(self, request, page_number=None):
+    @action(detail=True, methods=['get'], url_path='content_blocks')
+    def content_blocks(self, request, pk=None):
         try:
-            page = get_object_or_404(Page, page_number=page_number)
+            page = get_object_or_404(Page, pk=pk)  
             content_blocks = ContentBlock.objects.filter(page=page)
             serializer = ContentBlockSerializer(content_blocks, many=True)
             return Response(serializer.data)
         except Page.DoesNotExist:
             return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 class ContentBlockViewSet(viewsets.ModelViewSet):
