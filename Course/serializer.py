@@ -72,6 +72,7 @@ class TopicSerializer(serializers.ModelSerializer):
 
 
 class LessonSerializer(serializers.ModelSerializer):
+    lesson_id = serializers.ReadOnlyField(source='id')
     topics = TopicSerializer(many=True, read_only=True)
 
     class Meta:
