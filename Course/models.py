@@ -85,7 +85,7 @@ class Page(models.Model):
         unique_together = ('subtopic', 'page_number')
 
     def __str__(self):
-        return f"Page {self.page_number} - {self.lesson.lesson_title}"
+        return f"Page {self.page_number} - {self.subtopic.subtopic_title}"
     
 class ContentBlock(models.Model):
     BLOCK_TYPE_CHOICES = [
@@ -104,6 +104,7 @@ class ContentBlock(models.Model):
     block_type = models.CharField(max_length=50, choices=BLOCK_TYPE_CHOICES)
     difficulty = models.CharField(max_length=50, choices=DIFFICULTY_CHOICES)
     content = models.TextField()
+    file = models.FileField(upload_to='content_blocks/files/', null=True, blank=True)
 
     def __str__(self):
         return f"{self.get_block_type_display()} ({self.get_difficulty_display()}) - {self.page.subtopic.subtopic_title}"

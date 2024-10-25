@@ -1,6 +1,7 @@
 # views.py
 from django.db.models import Exists, OuterRef, F
 from rest_framework import viewsets, status
+from rest_framework.views import APIView
 from rest_framework.decorators import action, parser_classes
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
@@ -109,12 +110,37 @@ class SubtopicViewSet(viewsets.ModelViewSet):
 class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
     serializer_class = PageSerializer
-    lookup_field = 'page_number'  # Specify the lookup field
 
     @action(detail=False, methods=['get', 'post', 'put'], url_path='(?P<subtopic_id>[^/.]+)')
     def by_subtopic(self, request, subtopic_id=None):
+        student_id = request.query_params.get('student_id', None) # optional ra ni for mastery
+
         if request.method == 'GET':
             pages = self.queryset.filter(subtopic_id=subtopic_id)
+
+            if student_id:
+                try:
+                    mastery = StudentMastery.objects.get(student_id=student_id, subtopic_id=subtopic_id).mastery_level
+                    
+                    # Pwede pani mamodify kung asa ka na sa mastery level
+                    if mastery < 50.0:
+                        difficulty_level = 'beginner'
+                    elif mastery < 80.0:
+                        difficulty_level = 'intermediate'
+                    else:
+                        difficulty_level = 'advanced'
+
+                    # Filter sa pages based sa mastery level
+                    pages = pages.prefetch_related(
+                        models.Prefetch(
+                            'content_blocks',
+                            queryset=ContentBlock.objects.filter(difficulty=difficulty_level)
+                        )
+                    )
+
+                except StudentMastery.DoesNotExist:
+                    return Response({"detail": "Mastery record not found for the student."}, status=status.HTTP_404_NOT_FOUND)
+
             serializer = self.get_serializer(pages, many=True)
             return Response(serializer.data)
         elif request.method == 'POST':
@@ -133,19 +159,64 @@ class PageViewSet(viewsets.ModelViewSet):
                     return Response(serializer.data)
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             return Response({"detail": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+    @action(detail=True, methods=['get'], url_path='content_blocks')
+    def content_blocks(self, request, pk=None):
+        try:
+            page = get_object_or_404(Page, pk=pk)  
+            content_blocks = ContentBlock.objects.filter(page=page)
+            serializer = ContentBlockSerializer(content_blocks, many=True)
+            return Response(serializer.data)
+        except Page.DoesNotExist:
+            return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
 
 class ContentBlockViewSet(viewsets.ModelViewSet):
     queryset = ContentBlock.objects.all()
     serializer_class = ContentBlockSerializer
 
     def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        with transaction.atomic():
+            content_blocks = request.data.get("blocks", [])
+            created_blocks = []
+            for block_data in content_blocks:
+                page_id = block_data.get("page")
+                page = get_object_or_404(Page, pk=page_id)
+                block_serializer = self.get_serializer(data=block_data)
+                if block_serializer.is_valid():
+                    block = block_serializer.save(page=page)
+                    created_blocks.append(block)
+                else:
+                    return Response(block_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({"blocks": self.get_serializer(created_blocks, many=True).data}, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
+        with transaction.atomic():
+            content_blocks = request.data.get("blocks", [])
+            page_id = request.data.get("page")
+
+            page = get_object_or_404(Page, pk=page_id)
+
+            for block_data in content_blocks:
+                block_id = block_data.get("id")
+                block = get_object_or_404(ContentBlock, id=block_id)
+                serializer = self.get_serializer(block, data=block_data, partial=True)
+                if serializer.is_valid():
+                    serializer.save(page=page)
+                else:
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({"status": "Blocks updated successfully"}, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+
+        block_id = kwargs.get('pk')
+        content_block = get_object_or_404(ContentBlock, pk=block_id)
+        content_block.delete()
+        return Response({"status": "Block deleted"}, status=status.HTTP_204_NO_CONTENT)
+
 
 class FileUploadViewSet(viewsets.ModelViewSet):
     queryset = FileUpload.objects.all()
@@ -177,3 +248,17 @@ class StudentCourseProgressViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(progress, many=True)
             return Response(serializer.data)
         return Response({"error": "student_id is required"}, status=400)
+
+class UploadFileView(APIView):
+    def post(self, request):
+        if 'upload' not in request.FILES:
+            return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+
+        upload = request.FILES['upload']
+        try:
+            fs = FileSystemStorage()  
+            filename = fs.save(upload.name, upload)
+            uploaded_file_url = fs.url(filename)  
+            return Response({'url': uploaded_file_url}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': f'Failed to upload file: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

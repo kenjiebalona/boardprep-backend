@@ -5,7 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from Challenge.views import ChallengeViewSet, StudentChallengeAttemptViewSet
-from Course.views import CourseViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet
+from Course.views import CourseViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet, UploadFileView 
 from Class.views import ClassViewSet, PostViewSet, CommentViewSet, JoinRequestViewSet, ActivityViewSet, SubmissionViewSet, AttachmentViewSet
 from Exam.views import ExamViewSet, StudentExamAttemptViewSet
 from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
@@ -44,7 +44,7 @@ router.register(r'studentChallengeAttempt', StudentChallengeAttemptViewSet, base
 router.register(r'student-answers', StudentAnswerViewSet, basename='student-answers')
 router.register(r'student-lesson-progress', StudentLessonProgressViewSet, basename='student-lesson-progress')
 router.register(r'student-course-progress', StudentCourseProgressViewSet, basename='student-course-progress')
-router.register(r'content-blocks', ContentBlockViewSet, basename='contentblock')
+router.register(r'content-blocks', ContentBlockViewSet, basename='content-blocks')
 router.register(r'pages', PageViewSet, basename='page')
 router.register(r'subtopics', SubtopicViewSet, basename='subtopic')
 router.register(r'topics', TopicViewSet, basename='topic')
@@ -86,10 +86,9 @@ urlpatterns = [
     path('studentExamAttempt/retake/', StudentExamAttemptViewSet.as_view({'post': 'retake_exam'}), name='student-exam-attempt-retake'),
     path('exams/<int:pk>/current-attempt-number/', ExamViewSet.as_view({'get': 'get_current_attempt_number'}), name='exam-current-attempt-number'),
     path('api/exams/student-info/', ExamViewSet.as_view({'get': 'get_student_exam_info'}), name='exam-student-info'),
-
-
-
+    path('upload_file/', UploadFileView.as_view(), name='upload_file'),
 ]
+
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from Question.models import StudentAnswer
+from User.models import StudentMastery
 from .models import Challenge, StudentChallengeAttempt
 from .serializer import ChallengeSerializer, StudentChallengeAttemptSerializer
 
@@ -91,10 +92,22 @@ class StudentChallengeAttemptViewSet(viewsets.ModelViewSet):
         except StudentChallengeAttempt.DoesNotExist:
             return Response({"detail": "Challenge attempt not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        correct_answers_count = StudentAnswer.objects.filter(
-            challenge_attempt=attempt,
-            is_correct=True
-        ).count()
+        answers = StudentAnswer.objects.filter(challenge_attempt=attempt)
+        correct_answers_count = answers.filter(is_correct=True).count()
+
+        subtopic_answers = {}
+        for answer in answers:
+            subtopic = answer.question.subtopic
+            if subtopic not in subtopic_answers:
+                subtopic_answers[subtopic] = []
+            subtopic_answers[subtopic].append({
+                'question': answer.question,
+                'is_correct': answer.is_correct
+            })
+
+        for subtopic, answers in subtopic_answers.items():
+            student_mastery = StudentMastery.objects.get_or_create(student=attempt.student, subtopic=subtopic)
+            student_mastery.update_mastery(answers)
 
         attempt.score = correct_answers_count
         attempt.end_time = timezone.now()
