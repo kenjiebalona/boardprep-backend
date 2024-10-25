@@ -17,4 +17,4 @@ class StudentExamAttemptSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StudentExamAttempt
-        fields = '__all__'  # Ensure 'failed_lessons' is included here
+        fields = '__all__' 

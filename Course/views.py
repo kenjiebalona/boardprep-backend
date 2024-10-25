@@ -15,6 +15,12 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction, models
 from storages.backends.azure_storage import AzureStorage
 
+from openai import OpenAI
+import environ
+import os
+
+
+
 
 @api_view(['POST'])
 @csrf_exempt
@@ -169,8 +175,37 @@ class PageViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except Page.DoesNotExist:
             return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        
+    @action(detail=False, methods=['post'], url_path='summarize_lesson_content')
+    def summarize_lesson_content(self, request):
+        lesson_id = request.data.get("lesson_id")
+        
+        if not lesson_id:
+            return Response({"detail": "Lesson ID is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        lesson_content_blocks = ContentBlock.objects.filter(lesson_id=lesson_id, label="lesson-content")
 
+        if not lesson_content_blocks.exists():
+            return Response({"detail": "No content blocks found with the label 'lesson-content'."}, status=status.HTTP_404_NOT_FOUND)
+
+        full_content = " ".join([block.content for block in lesson_content_blocks])
+
+        env = environ.Env(DEBUG=(bool, False))
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+        client = OpenAI(api_key=env('OPENAI_API_KEY'))
+
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful summarizer for educational content. Provide a concise summary for students based on the given content, highlighting key concepts and important points."},
+                {"role": "user", "content": full_content}
+            ]
+        )
+        summary = completion.choices[0].message.content.strip()
+
+        return Response({"summary": summary}, status=status.HTTP_200_OK)
 
 class ContentBlockViewSet(viewsets.ModelViewSet):
     queryset = ContentBlock.objects.all()

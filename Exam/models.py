@@ -6,7 +6,7 @@ from Question.models import Question, QuestionGenerator, StudentAnswer
 
 class Exam(QuestionGenerator):
     id = models.AutoField(primary_key=True)
-    course = models.ForeignKey('Course.Course', on_delete=models.CASCADE)  # Change from OneToOneField to ForeignKey
+    course = models.ForeignKey('Course.Course', on_delete=models.CASCADE)  
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
     class_instance = models.ForeignKey('Class.Class', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
@@ -14,7 +14,7 @@ class Exam(QuestionGenerator):
     passing_score = models.FloatField(default=0.75)
     
     class Meta:
-        unique_together = ('student', 'course', 'class_instance')  # Enforce uniqueness per student, course, and class instance
+        unique_together = ('student', 'course', 'class_instance')  
 
     def __str__(self):
         return self.title
