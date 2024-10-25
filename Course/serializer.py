@@ -76,7 +76,7 @@ class LessonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lesson
-        fields = ['syllabus',  'lesson_title', 'order', 'learning_objectives', 'skills_to_acquire', 'topics']
+        fields = ['syllabus', 'lesson_id', 'lesson_title', 'order', 'learning_objectives', 'skills_to_acquire', 'topics']
         
 class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
