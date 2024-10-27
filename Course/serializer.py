@@ -47,12 +47,12 @@ class PageSerializer(serializers.ModelSerializer):
                 content_block = ContentBlock.objects.get(id=block_id, page=instance)
                 for attr, value in block_data.items():
                     setattr(content_block, attr, value)
-                content_block.save()
+                content_block.save()  
             else:
                 ContentBlock.objects.create(page=instance, **block_data)
         
         return instance
-        
+
 class SubtopicSerializer(serializers.ModelSerializer):
     pages = PageSerializer(many=True, read_only=True)
     subtopic_id = serializers.ReadOnlyField(source='id')
