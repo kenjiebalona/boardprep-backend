@@ -47,7 +47,7 @@ class StudentPreassessmentAttemptViewSet(viewsets.ModelViewSet):
             return Response({"detail": "attempt_id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            attempt = StudentPreassessmentAttempt.objects.get(leaderboardID=attempt_id)
+            attempt = StudentPreassessmentAttempt.objects.get(preassessmentID=attempt_id)
         except StudentPreassessmentAttempt.DoesNotExist:
             return Response({"detail": "Preassessment attempt not found."}, status=status.HTTP_404_NOT_FOUND)
 
