@@ -117,7 +117,7 @@ class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
     serializer_class = PageSerializer
 
-    @action(detail=False, methods=['get', 'post', 'put'], url_path='(?P<subtopic_id>[^/.]+)')
+    @action(detail=False, methods=['get', 'post', 'put'], url_path='by_subtopic/(?P<subtopic_id>[^/.]+)')
     def by_subtopic(self, request, subtopic_id=None):
         student_id = request.query_params.get('student_id', None) # optional ra ni for mastery
 

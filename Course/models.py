@@ -82,7 +82,6 @@ class Page(models.Model):
 
     class Meta:
         ordering = ['page_number']
-        unique_together = ('subtopic', 'page_number')
 
     def __str__(self):
         return f"Page {self.page_number} - {self.subtopic.subtopic_title}"
