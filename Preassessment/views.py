@@ -17,13 +17,13 @@ class PreassessmentViewSet(viewsets.ModelViewSet):
     serializer_class = PreassessmentSerializer
 
     @action(detail=False, methods=['get'])
-    def preassessment(self, request):
+    def today(self, request):
         today = timezone.now().date()
         preassessment, created = Preassessment.objects.get_or_create(date=today)
 
         if created:
             try:
-                preassessment.generate_questions(num_easy=3, num_medium=2, num_hard=1)
+                preassessment.generate_questions(num_easy=20, num_medium=29, num_hard=1)
             except ValueError as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

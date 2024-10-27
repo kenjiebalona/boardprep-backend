@@ -50,6 +50,7 @@ router.register(r'subtopics', SubtopicViewSet, basename='subtopic')
 router.register(r'topics', TopicViewSet, basename='topic')
 router.register(r'specializations', SpecializationViewSet, basename='specialization')
 router.register(r'preassessment', PreassessmentViewSet, basename='preassessment')
+router.register(r'studentPreassessmentAttempt', StudentPreassessmentAttemptViewSet, basename='studentPreassessmentAttempt')
 
 
 # router.register(r'daily-challenges', DailyChallengeViewSet, basename='daily-challenges')
