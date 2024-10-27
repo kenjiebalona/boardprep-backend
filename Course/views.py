@@ -117,7 +117,7 @@ class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
     serializer_class = PageSerializer
 
-    @action(detail=False, methods=['get', 'post', 'put'], url_path='(?P<subtopic_id>[^/.]+)')
+    @action(detail=False, methods=['get', 'post', 'put'], url_path='by_subtopic/(?P<subtopic_id>[^/.]+)')
     def by_subtopic(self, request, subtopic_id=None):
         student_id = request.query_params.get('student_id', None) # optional ra ni for mastery
 
@@ -176,7 +176,12 @@ class PageViewSet(viewsets.ModelViewSet):
         except Page.DoesNotExist:
             return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
         
-        
+    @action(detail=True, methods=['get'])
+    def get_page_by_id(self, request, pk=None):
+        page = get_object_or_404(Page, pk=pk)
+        serializer = self.get_serializer(page)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'], url_path='summarize_lesson_content')
     def summarize_lesson_content(self, request):
         lesson_id = request.data.get("lesson_id")
@@ -230,20 +235,42 @@ class ContentBlockViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         with transaction.atomic():
             content_blocks = request.data.get("blocks", [])
+            print("Received content_blocks payload:", content_blocks)
             page_id = request.data.get("page")
 
             page = get_object_or_404(Page, pk=page_id)
 
             for block_data in content_blocks:
-                block_id = block_data.get("id")
+                block_id = block_data.get("block_id") 
                 block = get_object_or_404(ContentBlock, id=block_id)
                 serializer = self.get_serializer(block, data=block_data, partial=True)
                 if serializer.is_valid():
-                    serializer.save(page=page)
+                    serializer.save()  
                 else:
                     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             return Response({"status": "Blocks updated successfully"}, status=status.HTTP_200_OK)
+        
+    @action(detail=False, methods=['post', 'put'], url_path='by_page/(?P<page_id>[^/.]+)')
+    def by_page(self, request, page_id=None):
+        page = get_object_or_404(Page, id=page_id)
+        content_blocks_data = request.data.get("content_blocks", [])
+        print(content_blocks_data )
+        for block_data in content_blocks_data:
+            block_id = block_data.get("block_id")
+            if block_id:
+                content_block = get_object_or_404(ContentBlock, id=block_id, page=page)
+                serializer = ContentBlockSerializer(content_block, data=block_data, partial=True)
+                if serializer.is_valid():
+                    serializer.save()
+                else:
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                ContentBlock.objects.create(page=page, **block_data)
+        
+        return Response({"status": "Content blocks updated successfully"}, status=status.HTTP_200_OK)
+
+
 
     def destroy(self, request, *args, **kwargs):
 
