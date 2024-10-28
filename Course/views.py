@@ -5,6 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.decorators import action, parser_classes
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
+
+from User.models import StudentMastery
 from .models import Course, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload, Topic, Subtopic, ContentBlock
 from Course.serializer import CourseSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer, SubtopicSerializer, TopicSerializer, ContentBlockSerializer
 from django.http import JsonResponse
