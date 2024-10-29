@@ -77,7 +77,7 @@ class QuizViewSet(viewsets.ModelViewSet):
         lesson_id = self.request.query_params.get('lesson_id')
 
         if student_id and lesson_id:
-            queryset = queryset.filter(lesson_id=student_id, subtopic_id=lesson_id)
+            queryset = queryset.filter(student_id=student_id, lesson_id=lesson_id)
         else:
             queryset = queryset.none()
         return queryset
