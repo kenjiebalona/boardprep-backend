@@ -69,8 +69,8 @@ class StudentMastery(models.Model):
         }
 
         for answer in answers:
-            student_mastery += weights[answer.question.difficulty] * answer.is_correct
-            total_mastery += weights[answer.question.difficulty]
+            student_mastery += weights[answer['question'].difficulty] * answer['is_correct']
+            total_mastery += weights[answer['question'].difficulty]
 
         avg_mastery = (student_mastery / total_mastery) * 100
 

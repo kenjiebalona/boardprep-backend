@@ -64,9 +64,9 @@ class StudentPreassessmentAttemptViewSet(viewsets.ModelViewSet):
                 'is_correct': answer.is_correct
             })
 
-        # for subtopic, answers in subtopic_answers.items():
-        #     student_mastery = StudentMastery.objects.get_or_create(student=attempt.student, subtopic=subtopic)
-        #     student_mastery.update_mastery(answers)
+        for subtopic, answers in subtopic_answers.items():
+            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, subtopic=subtopic)
+            student_mastery.update_mastery(answers)
 
         attempt.score = correct_answers_count
         attempt.end_time = timezone.now()
