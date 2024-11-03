@@ -9,7 +9,7 @@ from Question.models import StudentAnswer
 # Create your models here.
 class Quiz(QuestionGenerator):
     id = models.AutoField(primary_key=True)
-    subtopic = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
+    lesson = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
     class_instance = models.ForeignKey('Class.Class', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
@@ -21,7 +21,7 @@ class Quiz(QuestionGenerator):
         return self.title
 
     def generate_questions(self, num_easy, num_medium, num_hard):
-        filter_by = {'subtopic': self.subtopic}
+        filter_by = {'lesson': self.lesson}
         return super().generate_questions(num_easy, num_medium, num_hard, filter_by)
 
 
@@ -41,7 +41,7 @@ class StudentQuizAttempt(models.Model):
         if self.passed:
             StudentLessonProgress.objects.update_or_create(
                 student=self.student,
-                lesson=self.quiz.subtopic,
+                lesson=self.quiz.lesson,
                 defaults={'is_completed': True}
             )
     def calculate_score(self):
