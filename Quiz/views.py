@@ -34,16 +34,16 @@ class QuizViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='class')
     def get_by_lesson_and_class(self, request, *args, **kwargs):
-        lesson_id = request.query_params.get('lesson_id')
+        subtopic_id = request.query_params.get('subtopic_id')
         class_id = request.query_params.get('class_id')
 
-        if not lesson_id or not class_id:
+        if not subtopic_id or not class_id:
             return Response(
-                {"detail": "Both 'lesson_id' and 'class_id' query parameters are required."},
+                {"detail": "Both 'subtopic_id' and 'class_id' query parameters are required."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        quizzes = self.queryset.filter(lesson_id=lesson_id, class_instance_id=class_id)
+        quizzes = self.queryset.filter(subtopic_id=subtopic_id, class_instance_id=class_id)
 
         best_attempts = {}
 
@@ -51,17 +51,17 @@ class QuizViewSet(viewsets.ModelViewSet):
             student_quiz_attempts = StudentQuizAttempt.objects.filter(quiz=quiz)
 
             for attempt in student_quiz_attempts:
-                key = (quiz.student_id, quiz.lesson_id)
+                key = (quiz.student_id, quiz.subtopic_id)
                 current_best_score = best_attempts.get(key).score if key in best_attempts else None
                 if current_best_score is None or (attempt.score is not None and attempt.score > current_best_score):
                     best_attempts[key] = attempt
 
         result = []
-        for (student_id, lesson_id), attempt in best_attempts.items():
+        for (student_id, subtopic_id), attempt in best_attempts.items():
             result.append({
                 'student': attempt.quiz.student.first_name + " " + attempt.quiz.student.last_name,
                 'quiz_id': attempt.quiz.id,
-                'lesson': attempt.quiz.lesson.lesson_id,
+                'subtopic': attempt.quiz.subtopic.subtopic_id,
                 'score': attempt.score,
                 'total_questions': attempt.total_questions,
                 'start_time': attempt.start_time,
@@ -74,10 +74,10 @@ class QuizViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         student_id = self.request.query_params.get('student_id')
-        lesson_id = self.request.query_params.get('lesson_id')
+        subtopic_id = self.request.query_params.get('subtopic_id')
 
-        if student_id and lesson_id:
-            queryset = queryset.filter(student_id=student_id, lesson_id=lesson_id)
+        if student_id and subtopic_id:
+            queryset = queryset.filter(student_id=student_id, subtopic_id=subtopic_id)
         else:
             queryset = queryset.none()
         return queryset
