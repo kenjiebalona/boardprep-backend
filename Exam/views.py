@@ -98,10 +98,10 @@ class ExamViewSet(viewsets.ModelViewSet):
         question_counts = {}
 
         for attempt in quiz_attempts:
-            lesson = attempt.quiz.lesson
+            subtopic = attempt.quiz.subtopic
             weight = self._get_weight(attempt.score)
             count = max(1, int(avg_questions_per_subtopic * weight))
-            question_counts[lesson.lesson_id] = count
+            question_counts[subtopic.subtopic_id] = count
 
         return self._adjust_question_counts(question_counts)
 
