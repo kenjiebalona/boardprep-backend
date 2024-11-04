@@ -1,7 +1,7 @@
 from collections import defaultdict
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, render
-from Course.models import Lesson, StudentLessonProgress
+from Course.models import Subtopic, StudentLessonProgress
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -98,10 +98,10 @@ class ExamViewSet(viewsets.ModelViewSet):
         question_counts = {}
 
         for attempt in quiz_attempts:
-            subtopic = attempt.quiz.subtopic
+            lesson = attempt.quiz.lesson
             weight = self._get_weight(attempt.score)
             count = max(1, int(avg_questions_per_subtopic * weight))
-            question_counts[subtopic.subtopic_id] = count
+            question_counts[lesson.lesson_id] = count
 
         return self._adjust_question_counts(question_counts)
 
@@ -360,7 +360,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         available_questions = Question.objects.filter(subtopic__syllabus__course=exam.course)
         difficulty_distribution = self._get_difficulty_distribution()
 
-        total_subtopics = Lesson.objects.filter(syllabus__course=exam.course).count()
+        total_subtopics = Subtopic.objects.filter(syllabus__course=exam.course).count()
         questions_per_subtopic = 25 // total_subtopics
 
         for subtopic in failed_subtopics:
@@ -371,7 +371,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             questions.extend(subtopic_questions)
 
         remaining_count = 35 - len(questions)
-        other_subtopics = Lesson.objects.filter(syllabus__course=exam.course).exclude(subtopic_id__in=[lesson.lesson_id for subtopic in failed_lesson])
+        other_subtopics = Subtopic.objects.filter(syllabus__course=exam.course).exclude(subtopic_id__in=[subtopic.subtopic_id for subtopic in failed_subtopics])
         for subtopic in other_subtopics:
             if len(questions) >= 35:
                 break
