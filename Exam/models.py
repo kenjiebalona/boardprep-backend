@@ -20,24 +20,24 @@ class Exam(QuestionGenerator):
         return self.title
     
     def get_failed_lessons(self, student_exam_attempt):
-        lesson_scores = {}
+        subtopic_scores = {}
         student_answers = StudentAnswer.objects.filter(exam_attempt=student_exam_attempt)
         
         for answer in student_answers:
-            lesson = answer.question.quiz.lesson
-            if lesson not in lesson_scores:
-                lesson_scores[lesson] = {'correct': 0, 'total': 0}
+            subtopic = answer.question.quiz.subtopic
+            if subtopic not in subtopic_scores:
+                subtopic_scores[subtopic] = {'correct': 0, 'total': 0}
             
-            lesson_scores[lesson]['total'] += 1
+            subtopic_scores[subtopic]['total'] += 1
             if answer.is_correct:
-                lesson_scores[lesson]['correct'] += 1
+                subtopic_scores[subtopic]['correct'] += 1
 
-        failed_lessons = []
-        for lesson, scores in lesson_scores.items():
+        failed_subtopics = []
+        for subtopic, scores in subtopic_scores.items():
             if scores['total'] > 0 and scores['correct'] / scores['total'] < 0.75:  
-                failed_lessons.append(lesson)
+                failed_subtopics.append(subtopic)
 
-        return failed_lessons
+        return failed_subtopics
     
 class StudentExamAttempt(models.Model):
     id = models.AutoField(primary_key=True)
@@ -49,7 +49,7 @@ class StudentExamAttempt(models.Model):
     end_time = models.DateTimeField(null=True, blank=True)
     attempt_number = models.IntegerField(default=1)
     passed = models.BooleanField(default=False)
-    failed_lessons = models.ManyToManyField("Course.Lesson", blank=True)
+    failed_subtopics = models.ManyToManyField("Course.Subtopic", blank=True)
     
     def __str__(self):
         return f"{self.exam.student} - {self.exam} - {self.score}"
@@ -58,12 +58,12 @@ class StudentExamAttempt(models.Model):
         self.score = self.calculate_score()
         self.save()
 
-        student_lesson_progress_model = apps.get_model('Course', 'StudentLessonProgress')
+        student_subtopic_progress_model = apps.get_model('Course', 'StudentLessonProgress')
 
         if not self.passed:
-            failed_lessons = self.exam.get_failed_lessons(self)
-            for lesson in failed_lessons:
-                student_lesson_progress_model.objects.filter(student=self.exam.student, lesson=lesson).update(is_completed=False)
+            failed_subtopics = self.exam.get_failed_lessons(self)
+            for subtopic in failed_subtopics:
+                student_subtopic_progress_model.objects.filter(student=self.exam.student, subtopic=subtopic).update(is_completed=False)
 
     def calculate_score(self):
         correct_answers = StudentAnswer.objects.filter(exam_attempt=self, is_correct=True).count()

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from django.utils import timezone
 from django.shortcuts import get_object_or_404, render
-from Course.models import Lesson, StudentLessonProgress
+from Course.models import Subtopic, StudentLessonProgress
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -90,18 +90,18 @@ class ExamViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def _calculate_question_counts(self, quiz_attempts):
-        total_lessons = quiz_attempts.values('quiz__lesson').distinct().count()
-        if total_lessons == 0:
+        total_subtopics = quiz_attempts.values('quiz__subtopic').distinct().count()
+        if total_subtopics == 0:
             return {}
 
-        avg_questions_per_lesson = 25/ total_lessons
+        avg_questions_per_subtopic = 25/ total_subtopics
         question_counts = {}
 
         for attempt in quiz_attempts:
-            lesson = attempt.quiz.lesson
+            subtopic = attempt.quiz.subtopic
             weight = self._get_weight(attempt.score)
-            count = max(1, int(avg_questions_per_lesson * weight))
-            question_counts[lesson.lesson_id] = count
+            count = max(1, int(avg_questions_per_subtopic * weight))
+            question_counts[subtopic.subtopic_id] = count
 
         return self._adjust_question_counts(question_counts)
 
@@ -120,7 +120,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         print(f"Total questions before adjustment: {total_questions}")  # Debug statement
         adjustment_factor = 25 / total_questions
 
-        adjusted_counts = {lesson_id: max(1, int(count * adjustment_factor)) for lesson_id, count in question_counts.items()}
+        adjusted_counts = {subtopic_id: max(1, int(count * adjustment_factor)) for subtopic_id, count in question_counts.items()}
 
         print(f"Adjusted question counts: {adjusted_counts}")  # Debug statement
 
@@ -142,10 +142,10 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def _select_questions(self, exam, question_counts, difficulty_distribution):
         selected_questions = []
-        for lesson_id, count in question_counts.items():
-            for difficulty, proportion in difficulty_distribution[lesson_id].items():
+        for subtopic_id, count in question_counts.items():
+            for difficulty, proportion in difficulty_distribution[subtopic_id].items():
                 diff_count = int(count * proportion)
-                questions = Question.objects.filter(lesson_id=lesson_id, difficulty=difficulty).order_by('?')[:diff_count]
+                questions = Question.objects.filter(subtopic_id=subtopic_id, difficulty=difficulty).order_by('?')[:diff_count]
                 selected_questions.extend(questions)
         return selected_questions
 
@@ -180,14 +180,14 @@ class ExamViewSet(viewsets.ModelViewSet):
         attempt.save()
         
         if not passed:
-            failed_lessons = self.calculate_failed_lessons(request.data['answers'])
-            attempt.failed_lessons.set(failed_lessons)
+            failed_subtopics = self.calculate_failed_subtopics(request.data['answers'])
+            attempt.failed_subtopics.set(failed_subtopics)
             StudentLessonProgress.objects.filter(
                 student=student,
-                lesson__in=failed_lessons
+                subtopic__in=failed_subtopics
             ).update(is_completed=False)
             
-            print(f"Failed lessons set: {failed_lessons}")  # Debug print
+            print(f"Failed subtopics set: {failed_subtopics}")  # Debug print
 
         return Response({
             "detail": "Exam submitted successfully.", 
@@ -220,30 +220,30 @@ class ExamViewSet(viewsets.ModelViewSet):
                 continue  
         return correct_answers 
 
-    def calculate_failed_lessons(self, answers):
-        lesson_scores = {}
+    def calculate_failed_subtopics(self, answers):
+        subtopic_scores = {}
         for answer in answers:
             question_id = answer.get('question_id') 
             if not question_id:
                 continue  
             try:
                 question = Question.objects.get(id=question_id)
-                lesson = question.lesson
+                subtopic = question.subtopic
             except Question.DoesNotExist:
                 continue  
 
-            if lesson not in lesson_scores:
-                lesson_scores[lesson] = {'correct': 0, 'total': 0}
-            lesson_scores[lesson]['total'] += 1
+            if subtopic not in subtopic_scores:
+                subtopic_scores[subtopic] = {'correct': 0, 'total': 0}
+            subtopic_scores[subtopic]['total'] += 1
             if answer.get('is_correct'):
-                lesson_scores[lesson]['correct'] += 1
+                subtopic_scores[subtopic]['correct'] += 1
 
-        failed_lessons = [
-            lesson for lesson, scores in lesson_scores.items()
+        failed_subtopics = [
+            subtopic for subtopic, scores in subtopic_scores.items()
             if scores['correct'] / scores['total'] < 0.75
         ]
         
-        return failed_lessons
+        return failed_subtopics
 
     @action(detail=True, methods=['get'])
     def detailed_results(self, request, pk=None):
@@ -315,12 +315,12 @@ class ExamViewSet(viewsets.ModelViewSet):
         attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').last()
 
         if not attempt or attempt.passed:
-            return Response({"detail": "No failed lessons found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "No failed subtopics found."}, status=status.HTTP_404_NOT_FOUND)
 
-        failed_lessons = attempt.failed_lessons.all()
-        lesson_data = [{"lesson_id": lesson.lesson_id, "lesson_title": lesson.lesson_title} for lesson in failed_lessons]
+        failed_subtopics = attempt.failed_subtopics.all()
+        subtopic_data = [{"subtopic_id": subtopic.subtopic_id, "subtopic_title": subtopic.subtopic_title} for subtopic in failed_subtopics]
 
-        return Response({"failed_lessons": lesson_data}, status=status.HTTP_200_OK)
+        return Response({"failed_subtopics": subtopic_data}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def get_exam_questions(self, request, pk=None):
@@ -347,7 +347,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 
     def generate_questions_for_attempt(self, exam, student, attempt_number):
         questions = []
-        failed_lessons = []
+        failed_subtopics = []
 
         if attempt_number > 1:
             previous_attempt = StudentExamAttempt.objects.filter(
@@ -355,40 +355,40 @@ class ExamViewSet(viewsets.ModelViewSet):
                 attempt_number=attempt_number-1
             ).first()
             if previous_attempt:
-                failed_lessons = previous_attempt.failed_lessons.all()
+                failed_subtopics = previous_attempt.failed_subtopics.all()
 
-        available_questions = Question.objects.filter(lesson__syllabus__course=exam.course)
+        available_questions = Question.objects.filter(subtopic__syllabus__course=exam.course)
         difficulty_distribution = self._get_difficulty_distribution()
 
-        total_lessons = Lesson.objects.filter(syllabus__course=exam.course).count()
-        questions_per_lesson = 25 // total_lessons
+        total_subtopics = Subtopic.objects.filter(syllabus__course=exam.course).count()
+        questions_per_subtopic = 25 // total_subtopics
 
-        for lesson in failed_lessons:
-            lesson_questions = self._select_questions_for_lesson(
-                lesson.lesson_id, questions_per_lesson, difficulty_distribution, 
-                available_questions.filter(lesson=lesson)
+        for subtopic in failed_subtopics:
+            subtopic_questions = self._select_questions_for_subtopic(
+                subtopic.subtopic_id, questions_per_subtopic, difficulty_distribution, 
+                available_questions.filter(subtopic=subtopic)
             )
-            questions.extend(lesson_questions)
+            questions.extend(subtopic_questions)
 
         remaining_count = 35 - len(questions)
-        other_lessons = Lesson.objects.filter(syllabus__course=exam.course).exclude(lesson_id__in=[lesson.lesson_id for lesson in failed_lessons])
-        for lesson in other_lessons:
+        other_subtopics = Subtopic.objects.filter(syllabus__course=exam.course).exclude(subtopic_id__in=[subtopic.subtopic_id for subtopic in failed_subtopics])
+        for subtopic in other_subtopics:
             if len(questions) >= 35:
                 break
-            count = min(questions_per_lesson, remaining_count)
-            lesson_questions = self._select_questions_for_lesson(
-                lesson.lesson_id, count, difficulty_distribution, 
-                available_questions.filter(lesson=lesson)
+            count = min(questions_per_subtopic, remaining_count)
+            subtopic_questions = self._select_questions_for_subtopic(
+                subtopic.subtopic_id, count, difficulty_distribution, 
+                available_questions.filter(subtopic=subtopic)
             )
-            questions.extend(lesson_questions)
+            questions.extend(subtopic_questions)
 
         questions = questions[:35]
         random.shuffle(questions)
         return questions
 
-    def _select_questions_for_lesson(self, lesson_id, count, difficulty_distribution, question_queryset):
+    def _select_questions_for_lesson(self, subtopic_id, count, difficulty_distribution, question_queryset):
         selected_questions = []
-        for difficulty, proportion in difficulty_distribution[lesson_id].items():
+        for difficulty, proportion in difficulty_distribution[subtopic_id].items():
             diff_count = int(count * proportion)
             questions = question_queryset.filter(difficulty=difficulty).order_by('?')[:diff_count]
             selected_questions.extend(questions)
@@ -497,11 +497,11 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             correct_paragraph = "Questions you answered correctly:\n\n"
             for answer in correct_answers:
                 question_text = answer.question.text
-                lesson_title = answer.question.lesson.lesson_title
+                subtopic_title = answer.question.subtopic.subtopic_title
                 selected_choice_text = answer.selected_choice.text
 
                 correct_paragraph += (
-                    f"Lesson: {lesson_title}\n"
+                    f"Subtopic: {subtopic_title}\n"
                     f"Question: {question_text}\n"
                     f"Your Answer: {selected_choice_text}\n\n"
                 )
@@ -512,13 +512,13 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             wrong_paragraph = "Questions you answered incorrectly:\n\n"
             for answer in wrong_answers:
                 question_text = answer.question.text
-                lesson_title = answer.question.lesson.lesson_title
+                subtopic_title = answer.question.subtopic.subtopic_title
                 selected_choice_text = answer.selected_choice.text
                 correct_choice = Choice.objects.filter(question=answer.question, is_correct=True).first()
                 correct_answer_text = correct_choice.text if correct_choice else "Not available"
 
                 wrong_paragraph += (
-                    f"Lesson: {lesson_title}\n"
+                    f"Subtopic: {subtopic_title}\n"
                     f"Question: {question_text}\n"
                     f"Your Answer: {selected_choice_text}\n"
                     f"Correct Answer: {correct_answer_text}\n\n"                 
