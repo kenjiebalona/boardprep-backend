@@ -185,7 +185,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             attempt.failed_lessons.set(failed_subtopic_ids)
             StudentLessonProgress.objects.filter(
                 student=student,
-                subtopic__in=failed_subtopics
+                lesson__in=failed_subtopics_id
             ).update(is_completed=False)
             
             print(f"Failed subtopics set: {failed_subtopics}")  # Debug print
