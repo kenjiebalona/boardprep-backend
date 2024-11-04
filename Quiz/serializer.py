@@ -9,7 +9,7 @@ class QuizSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Quiz
-        fields = ['id', 'student', 'class_instance', 'lesson', 'title', 'questions']
+        fields = ['id', 'student', 'class_instance', 'subtopic', 'title', 'questions']
 
 
 class StudentQuizAttemptSerializer(serializers.ModelSerializer):
