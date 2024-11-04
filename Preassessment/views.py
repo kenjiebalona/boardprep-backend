@@ -93,6 +93,20 @@ class StudentPreassessmentAttemptViewSet(viewsets.ModelViewSet):
             'total_questions': attempt.total_questions,
             'time_taken': str(time_taken)
         }, status=status.HTTP_200_OK)
+    
+    def get_queryset(self):
+        student_id = self.request.query_params.get('student_id')
+        course_id = self.request.query_params.get('course_id')
+        queryset = super().get_queryset()
+
+        if student_id:
+            queryset = queryset.filter(student=student_id)
+
+        if course_id:
+            preassessments = Preassessment.objects.filter(course__course_id=course_id)
+            queryset = queryset.filter(preassessment__in=preassessments)
+        
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
