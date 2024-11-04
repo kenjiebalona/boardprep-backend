@@ -181,7 +181,8 @@ class ExamViewSet(viewsets.ModelViewSet):
         
         if not passed:
             failed_subtopics = self.calculate_failed_subtopics(request.data['answers'])
-            attempt.failed_lessons.set(failed_subtopics)
+            failed_subtopic_ids = [subtopic.id for subtopic in failed_subtopics]
+            attempt.failed_lessons.set(failed_subtopic_ids)
             StudentLessonProgress.objects.filter(
                 student=student,
                 subtopic__in=failed_subtopics
