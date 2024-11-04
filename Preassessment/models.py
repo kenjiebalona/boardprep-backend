@@ -6,6 +6,7 @@ from Question.models import Question, QuestionGenerator
 # Create your models here.
 class Preassessment(QuestionGenerator):
     preassessmentID = models.BigAutoField(primary_key=True)
+    course = models.ForeignKey('Course.Course', on_delete=models.CASCADE)  
     date = models.DateField(default=timezone.now, unique=True)
 
     def __str__(self):

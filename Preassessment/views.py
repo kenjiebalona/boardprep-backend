@@ -7,6 +7,7 @@ from rest_framework.response import Response
 
 from Question.models import StudentAnswer
 from User.models import StudentMastery
+from Course.models import Course
 from .models import Preassessment, StudentPreassessmentAttempt
 from .serializer import PreassessmentSerializer, StudentPreassessmentAttemptSerializer
 
@@ -18,12 +19,24 @@ class PreassessmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def today(self, request):
+        course_id = request.query_params.get('course_id')
         today = timezone.now().date()
-        preassessment, created = Preassessment.objects.get_or_create(date=today)
+
+        if not course_id:
+            return Response({"detail": "course_id parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            course = Course.objects.get(course_id=course_id)
+            subtopics = course.syllabus.lessons.values_list('topics__subtopics', flat=True)
+        except Course.DoesNotExist:
+            return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        preassessment, created = Preassessment.objects.get_or_create(date=today, course=course)
 
         if created:
+            filter_by = {'subtopic__in': subtopics}
             try:
-                preassessment.generate_questions(num_easy=20, num_medium=29, num_hard=1)
+                preassessment.generate_questions(num_easy=20, num_medium=29, num_hard=1, filter_by=filter_by)
             except ValueError as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

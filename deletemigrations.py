@@ -22,6 +22,7 @@ apps = [
     'Quiz',
     'Subscription',
     'User',
+    'Preassessment',
 ]
 
 for app in apps:
