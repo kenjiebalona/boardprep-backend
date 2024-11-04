@@ -64,8 +64,8 @@ class QuestionGenerator(models.Model):
 
         questions = list(easy_questions) + list(medium_questions) + list(hard_questions)
 
-        if len(questions) < num_easy + num_medium + num_hard:
-            raise ValueError("Insufficient questions available to meet the requested quantities.")
+        # if len(questions) < num_easy + num_medium + num_hard:
+        #     raise ValueError("Insufficient questions available to meet the requested quantities.")
 
         random.shuffle(questions)
         return questions
