@@ -12,8 +12,8 @@ class Preassessment(QuestionGenerator):
     def __str__(self):
         return f"Pre Assessment ID: {self.preassessmentID}"
 
-    def generate_questions(self, num_easy, num_medium, num_hard):
-        questions = super().generate_questions(num_easy, num_medium, num_hard)
+    def generate_questions(self, num_easy, num_medium, num_hard, filter_by=None):
+        questions = super().generate_questions(num_easy, num_medium, num_hard, filter_by)
         self.questions.set(questions)
         self.save()
         return questions
