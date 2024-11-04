@@ -317,7 +317,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         if not attempt or attempt.passed:
             return Response({"detail": "No failed subtopics found."}, status=status.HTTP_404_NOT_FOUND)
 
-        failed_subtopics = attempt.failed_subtopics.all()
+        failed_subtopics = attempt.failed_lessons.all()
         subtopic_data = [{"subtopic_id": subtopic.subtopic_id, "subtopic_title": subtopic.subtopic_title} for subtopic in failed_subtopics]
 
         return Response({"failed_subtopics": subtopic_data}, status=status.HTTP_200_OK)
@@ -355,7 +355,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 attempt_number=attempt_number-1
             ).first()
             if previous_attempt:
-                failed_subtopics = previous_attempt.failed_subtopics.all()
+                failed_subtopics = previous_attempt.failed_lessons.all()
 
         available_questions = Question.objects.filter(subtopic__syllabus__course=exam.course)
         difficulty_distribution = self._get_difficulty_distribution()
