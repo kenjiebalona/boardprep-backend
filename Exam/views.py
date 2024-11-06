@@ -10,7 +10,7 @@ from rest_framework.request import Request
 from Question.models import Question, StudentAnswer, Choice
 from Question.serializer import QuestionSerializer
 from Quiz.models import StudentQuizAttempt
-from User.models import Student
+from User.models import Student, StudentMastery
 from .models import Exam, ExamQuestion, StudentExamAttempt
 from .serializer import ExamSerializer, StudentExamAttemptSerializer
 from openai import OpenAI
@@ -27,9 +27,9 @@ class ExamViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            num_easy = 3  # Example hardcoded values
-            num_medium = 2
-            num_hard = 1
+            num_easy = 20  # Example hardcoded values
+            num_medium = 28
+            num_hard = 5
             exam = serializer.save()
             try:
                 questions = exam.generate_questions(num_easy, num_medium, num_hard)
@@ -59,7 +59,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 if not question_counts:
                     return Response({"detail": "No valid question counts calculated."}, status=status.HTTP_400_BAD_REQUEST)
                 difficulty_distribution = self._get_difficulty_distribution()
-                attempt_number =  1 
+                attempt_number =  1
                 selected_questions = self._select_questions(exam, question_counts, difficulty_distribution)
                 total_questions = len(selected_questions)
                 attempt = StudentExamAttempt.objects.create(
@@ -158,7 +158,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Student not authorized for this exam."}, status=status.HTTP_403_FORBIDDEN)
 
         attempt = StudentExamAttempt.objects.filter(
-        exam=exam, 
+        exam=exam,
         attempt_number=attempt_number
         ).first()
 
@@ -170,15 +170,15 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         score = self.calculate_score(request.data['answers'], exam, attempt)
         passed = (score / attempt.total_questions) >= exam.passing_score
-        
+
         attempt.score = score
         attempt.passed = passed
         attempt.end_time = timezone.now()
-        
+
         feedback = StudentExamAttemptViewSet().generate_feedback(attempt)
         attempt.feedback = feedback
         attempt.save()
-        
+
         if not passed:
             failed_subtopics = self.calculate_failed_subtopics(request.data['answers'])
             failed_subtopic_ids = [subtopic.id for subtopic in failed_subtopics]
@@ -187,16 +187,16 @@ class ExamViewSet(viewsets.ModelViewSet):
                 student=student,
                 lesson__in=failed_subtopic_ids
             ).update(is_completed=False)
-            
+
             print(f"Failed subtopics set: {failed_subtopics}")  # Debug print
 
         return Response({
-            "detail": "Exam submitted successfully.", 
-            "score": score, 
+            "detail": "Exam submitted successfully.",
+            "score": score,
             "passed": passed,
             "feedback": feedback
         })
-    
+
     def calculate_score(self, answers, exam, attempt):
         correct_answers = 0
         for answer in answers:
@@ -213,25 +213,42 @@ class ExamViewSet(viewsets.ModelViewSet):
                     question=question,
                     selected_choice_id=selected_choice_id,
                     is_correct=is_correct,
-                    student=exam.student 
+                    student=exam.student
                 )
             except Question.DoesNotExist:
-                continue 
+                continue
             except Choice.DoesNotExist:
-                continue  
-        return correct_answers 
+                continue
+
+        answers = StudentAnswer.objects.filter(exam_attempt=attempt)
+
+        subtopic_answers = {}
+        for answer in answers:
+            subtopic = answer.question.subtopic
+            if subtopic not in subtopic_answers:
+                subtopic_answers[subtopic] = []
+            subtopic_answers[subtopic].append({
+                'question': answer.question,
+                'is_correct': answer.is_correct
+            })
+
+        for subtopic, answers in subtopic_answers.items():
+            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, subtopic=subtopic)
+            student_mastery.update_mastery(answers)
+
+        return correct_answers
 
     def calculate_failed_subtopics(self, answers):
         subtopic_scores = {}
         for answer in answers:
-            question_id = answer.get('question_id') 
+            question_id = answer.get('question_id')
             if not question_id:
-                continue  
+                continue
             try:
                 question = Question.objects.get(id=question_id)
                 subtopic = question.subtopic
             except Question.DoesNotExist:
-                continue  
+                continue
 
             if subtopic not in subtopic_scores:
                 subtopic_scores[subtopic] = {'correct': 0, 'total': 0}
@@ -243,7 +260,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             subtopic for subtopic, scores in subtopic_scores.items()
             if scores['correct'] / scores['total'] < 0.75
         ]
-        
+
         return failed_subtopics
 
     @action(detail=True, methods=['get'])
@@ -266,7 +283,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             question_data['student_answer'] = answer.selected_choice.text if answer else None
             question_data['is_correct'] = answer.is_correct if answer else False
             results.append(question_data)
-        
+
         feedback = attempt.feedback
 
         return Response({
@@ -274,7 +291,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             "score": attempt.score,
             "total_questions": len(questions),
             "results": results,
-            "feedback": feedback 
+            "feedback": feedback
         })
 
     @action(detail=True, methods=['get'])
@@ -290,7 +307,7 @@ class ExamViewSet(viewsets.ModelViewSet):
             "average_score": attempts.aggregate(Avg('score'))['score__avg'],
             "highest_score": attempts.aggregate(Max('score'))['score__max'],
             "lowest_score": attempts.aggregate(Min('score'))['score__min'],
-            
+
         })
 
     @action(detail=True, methods=['get'])
@@ -345,14 +362,14 @@ class ExamViewSet(viewsets.ModelViewSet):
             "questions": question_data,
             "total_questions": len(question_data)
         }, status=status.HTTP_200_OK)
-                
+
     def generate_questions_for_attempt(self, exam, student, attempt_number):
         questions = []
         failed_subtopics = []
 
         if attempt_number > 1:
             previous_attempt = StudentExamAttempt.objects.filter(
-                exam=exam, 
+                exam=exam,
                 attempt_number=attempt_number-1
             ).first()
             if previous_attempt:
@@ -366,7 +383,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         for subtopic in failed_subtopics:
             subtopic_questions = self._select_questions_for_subtopic(
-                subtopic.subtopic_id, questions_per_subtopic, difficulty_distribution, 
+                subtopic.subtopic_id, questions_per_subtopic, difficulty_distribution,
                 available_questions.filter(subtopic=subtopic)
             )
             questions.extend(subtopic_questions)
@@ -378,7 +395,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 break
             count = min(questions_per_subtopic, remaining_count)
             subtopic_questions = self._select_questions_for_subtopic(
-                subtopic.lesson_id, count, difficulty_distribution, 
+                subtopic.lesson_id, count, difficulty_distribution,
                 available_questions.filter(subtopic=subtopic)
             )
             questions.extend(subtopic_questions)
@@ -397,7 +414,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def _get_difficulty_distribution(self):
         return defaultdict(lambda: {1: 0.3, 2: 0.4, 3: 0.3})
-    
+
     @action(detail=False, methods=['get'])
     def get_student_exam_info(self, request, *args, **kwargs):
         student_id = request.query_params.get('student_id')
@@ -429,15 +446,15 @@ class ExamViewSet(viewsets.ModelViewSet):
             "course_id": course_id,
             "exams": exam_data
         }, status=status.HTTP_200_OK)
-    
+
     @action(detail=True, methods=['get'], url_path='current-attempt-number')
     def get_current_attempt_number(self, request, pk=None):
         exam = self.get_object()
         student_id = request.query_params.get('student_id')
-        
+
         if not student_id:
             return Response({"detail": "Student ID must be provided."}, status=status.HTTP_400_BAD_REQUEST)
- 
+
         last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
         if last_attempt:
               next_attempt_number = last_attempt.attempt_number + 1
@@ -447,9 +464,9 @@ class ExamViewSet(viewsets.ModelViewSet):
             last_attempt_serialized = None
 
         return Response({"exam_id": exam.id, "student_id": student_id, "last_attempt": last_attempt_serialized, "next_attempt_number": next_attempt_number}, status=status.HTTP_200_OK)
-        
-  
-        
+
+
+
 class StudentExamAttemptViewSet(viewsets.ModelViewSet):
     queryset = StudentExamAttempt.objects.all()
     serializer_class = StudentExamAttemptSerializer
@@ -466,7 +483,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        
+
         if serializer.is_valid():
             score = serializer.validated_data.get('score', instance.score)
 
@@ -481,14 +498,14 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             wrong_answers_paragraph = self.create_answer_paragraph(wrong_answers, "wrong")
 
             feedback = self.generate_feedback(student_name, specialization_name, correct_answers_paragraph,wrong_answers_paragraph)
-            
+
             # Save the instance along with the generated feedback
             serializer.save(feedback=feedback)
             return Response(serializer.data)
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    
+
     def create_answer_paragraph(self, correct_answers, wrong_answers):
 
         correct_paragraph = ""
@@ -522,7 +539,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
                     f"Subtopic: {subtopic_title}\n"
                     f"Question: {question_text}\n"
                     f"Your Answer: {selected_choice_text}\n"
-                    f"Correct Answer: {correct_answer_text}\n\n"                 
+                    f"Correct Answer: {correct_answer_text}\n\n"
                 )
         else:
             wrong_paragraph = "You answered all questions correctly.\n"
@@ -530,7 +547,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         return correct_paragraph + wrong_paragraph
 
     def generate_feedback(self, attempt):
-        print("Starting feedback generation")  
+        print("Starting feedback generation")
 
         env = environ.Env(DEBUG=(bool, False))
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -543,7 +560,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
 
         correct_answers = StudentAnswer.objects.filter(exam_attempt=attempt, is_correct=True)
         wrong_answers = StudentAnswer.objects.filter(exam_attempt=attempt, is_correct=False)
-        
+
         print(correct_answers)
         print(wrong_answers)
 
@@ -553,9 +570,9 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         total_questions = attempt.total_questions
         correct_count = correct_answers.count()
         score_percentage = (attempt.score / total_questions) * 100 if total_questions > 0 else 0
-        
-        print(f"Generating feedback for {student_name}, {specialization_name}")  
-        
+
+        print(f"Generating feedback for {student_name}, {specialization_name}")
+
         if 0 <= score_percentage < 25:
             score_feedback = f"Poor performance. You answered {correct_count} out of {total_questions} questions correctly. You need to review the material and focus on understanding the key concepts."
         elif 25 <= score_percentage < 50:
@@ -576,12 +593,12 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
                 {"role": "user", "content": f"I am {student_name}, a {specialization_name} major, and here are the details of my test. Score: {attempt.score}, Total Questions: {total_questions}, Perecentage: {score_percentage:.2f}%), Passed: {attempt.passed}\n\n{answers_paragraph}\n\nHere's an initial assessment of your performance:\n\n{score_feedback}\n\nBased on these results, can you provide some detailed feedback and suggestions for improvement if needed, like what subjects to focus on, which field I excel in, and some strategies? Address me directly, and don't put any placeholders as this will be displayed directly in unformatted text form."}
             ]
         )
-        
+
         print(completion)
 
         ai_feedback = completion.choices[0].message.content.strip()
         final_feedback = f"{ai_feedback}\n\nAdditional Performance Summary:\n{score_feedback}"
-        print(f"Feedback generated: {final_feedback[:100]}...") 
+        print(f"Feedback generated: {final_feedback[:100]}...")
         return final_feedback
 
     def retrieve(self, request, *args, **kwargs):
@@ -593,7 +610,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
+
     def create_new_attempt(self, student, exam):
         last_attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').first()
         new_attempt_number = last_attempt.attempt_number + 1 if last_attempt else 1
@@ -613,7 +630,7 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
                 attempt=new_attempt
             )
         return new_attempt
-    
+
     @action(detail=False, methods=['post'])
     def retake_exam(self, request, *args, **kwargs):
         student_id = request.data.get('student_id')

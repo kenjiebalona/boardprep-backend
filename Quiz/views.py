@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from Question.models import StudentAnswer
 from Quiz.models import Quiz, StudentQuizAttempt
 from Quiz.serializer import QuizSerializer, StudentQuizAttemptSerializer
+from User.models import StudentMastery
 
 # Create your views here.
 class QuizViewSet(viewsets.ModelViewSet):
@@ -17,8 +18,8 @@ class QuizViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             num_easy = 3  # Example hardcoded values
-            num_medium = 2
-            num_hard = 1
+            num_medium = 3
+            num_hard = 2
             quiz = serializer.save()
             try:
                 questions = quiz.generate_questions(num_easy, num_medium, num_hard)
@@ -127,10 +128,22 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
         except StudentQuizAttempt.DoesNotExist:
             return Response({"detail": "Quiz attempt not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        correct_answers_count = StudentAnswer.objects.filter(
-            quiz_attempt=attempt,
-            is_correct=True
-        ).count()
+        answers = StudentAnswer.objects.filter(quiz_attempt=attempt)
+        correct_answers_count = answers.filter(is_correct=True).count()
+
+        subtopic_answers = {}
+        for answer in answers:
+            subtopic = answer.question.subtopic
+            if subtopic not in subtopic_answers:
+                subtopic_answers[subtopic] = []
+            subtopic_answers[subtopic].append({
+                'question': answer.question,
+                'is_correct': answer.is_correct
+            })
+
+        for subtopic, answers in subtopic_answers.items():
+            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, subtopic=subtopic)
+            student_mastery.update_mastery(answers)
 
         attempt.score = correct_answers_count
         attempt.end_time = timezone.now()
