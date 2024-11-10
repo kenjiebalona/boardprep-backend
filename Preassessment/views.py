@@ -68,7 +68,7 @@ class StudentPreassessmentAttemptViewSet(viewsets.ModelViewSet):
 
         subtopic_answers = {}
         for answer in answers:
-            subtopic = answer.question.subtopic
+            subtopic = answer.question.learning_objective
             if subtopic not in subtopic_answers:
                 subtopic_answers[subtopic] = []
             subtopic_answers[subtopic].append({
