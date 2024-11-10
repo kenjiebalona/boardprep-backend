@@ -21,7 +21,7 @@ class Quiz(QuestionGenerator):
         return self.title
 
     def generate_questions(self, num_easy, num_medium, num_hard):
-        filter_by = {'subtopic': self.subtopic}
+        filter_by = {'learning_objective': self.learning_objective}
         return super().generate_questions(num_easy, num_medium, num_hard, filter_by)
 
 
@@ -41,7 +41,7 @@ class StudentQuizAttempt(models.Model):
         if self.passed:
             StudentLessonProgress.objects.update_or_create(
                 student=self.student,
-                subtopic=self.quiz.subtopic,
+                learning_objective=self.quiz.learning_objective,
                 defaults={'is_completed': True}
             )
     def calculate_score(self):
