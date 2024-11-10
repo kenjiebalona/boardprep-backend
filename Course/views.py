@@ -7,8 +7,8 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 
 from User.models import StudentMastery
-from .models import Course, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload, Topic, Subtopic, ContentBlock
-from Course.serializer import CourseSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer, SubtopicSerializer, TopicSerializer, ContentBlockSerializer
+from .models import Course, LearningObjective, Lesson, StudentCourseProgress, StudentLessonProgress, Syllabus, Page, FileUpload, Topic, Subtopic, ContentBlock
+from Course.serializer import CourseSerializer, LearningObjectiveSerializer, StudentCourseProgressSerializer, StudentLessonProgressSerializer, SyllabusSerializer, LessonSerializer, FileUploadSerializer, PageSerializer, SubtopicSerializer, TopicSerializer, ContentBlockSerializer
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.files.storage import FileSystemStorage
@@ -114,6 +114,16 @@ class SubtopicViewSet(viewsets.ModelViewSet):
         pages = subtopic.pages.all()
         serializer = PageSerializer(pages, many=True)
         return Response(serializer.data)
+    
+class LearningObjectiveViewSet(viewsets.ModelViewSet):
+    queryset = LearningObjective.objects.all()
+    serializer_class = LearningObjectiveSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
@@ -125,10 +135,14 @@ class PageViewSet(viewsets.ModelViewSet):
 
         if request.method == 'GET':
             pages = self.queryset.filter(subtopic_id=subtopic_id)
+            objectives = LearningObjective.objects.filter(subtopic_id=subtopic_id)
 
             if student_id:
                 try:
-                    mastery = StudentMastery.objects.get(student_id=student_id, subtopic_id=subtopic_id).mastery_level
+                    mastery = 0.0
+                    for objective in objectives:
+                        mastery += StudentMastery.objects.get(student_id=student_id, learning_objective_id=objective.id).mastery_level
+                    mastery /= objectives.count()
                     
                     # Pwede pani mamodify kung asa ka na sa mastery level
                     if mastery < 50.0:
@@ -150,7 +164,7 @@ class PageViewSet(viewsets.ModelViewSet):
                     return Response({"detail": "Mastery record not found for the student."}, status=status.HTTP_404_NOT_FOUND)
 
             serializer = self.get_serializer(pages, many=True)
-            return Response(serializer.data)
+            return Response({"pages": serializer.data, "objectives": LearningObjectiveSerializer(objectives, many=True).data})
         elif request.method == 'POST':
             serializer = self.get_serializer(data=request.data)
             if serializer.is_valid():

@@ -7,7 +7,7 @@ from Class.models import Attachment
 # Create your models here.
 class Question(models.Model):
     id = models.AutoField(primary_key=True)
-    subtopic = models.ForeignKey('Course.Subtopic', on_delete=models.CASCADE)
+    learning_objective = models.ForeignKey('Course.LearningObjective', on_delete=models.CASCADE)
     text = models.TextField()
     difficulty = models.IntegerField(choices=[(1, 'Beginner'), (2, 'Intermediate'), (3, 'Advanced')])
     attachments = models.ManyToManyField(Attachment, blank=True, related_name='questions')

@@ -5,7 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from Challenge.views import ChallengeViewSet, StudentChallengeAttemptViewSet
-from Course.views import CourseViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet, UploadFileView 
+from Course.views import CourseViewSet, LearningObjectiveViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet, UploadFileView 
 from Class.views import ClassViewSet, PostViewSet, CommentViewSet, JoinRequestViewSet, ActivityViewSet, SubmissionViewSet, AttachmentViewSet
 from Exam.views import ExamViewSet, StudentExamAttemptViewSet
 from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
@@ -47,6 +47,7 @@ router.register(r'student-course-progress', StudentCourseProgressViewSet, basena
 router.register(r'content-blocks', ContentBlockViewSet, basename='content-blocks')
 router.register(r'pages', PageViewSet, basename='page')
 router.register(r'subtopics', SubtopicViewSet, basename='subtopic')
+router.register(r'objectives', LearningObjectiveViewSet, basename='objectives')
 router.register(r'topics', TopicViewSet, basename='topic')
 router.register(r'specializations', SpecializationViewSet, basename='specialization')
 router.register(r'preassessment', PreassessmentViewSet, basename='preassessment')

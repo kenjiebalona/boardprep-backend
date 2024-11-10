@@ -52,12 +52,13 @@ class Student(User):
 
 class StudentMastery(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
-    subtopic = models.ForeignKey("Course.Subtopic", on_delete=models.CASCADE, related_name='mastery')
+    learning_objective = models.ForeignKey("Course.LearningObjective", on_delete=models.CASCADE, related_name='mastery')
     mastery_level = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)  # Mastery as a percentage
+    questions_attempted = models.IntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.student.user_name} - {self.subtopic.subtopic_title} - Mastery: {self.mastery_level}%"
+        return f"{self.student.user_name} - {self.objective} - Mastery: {self.mastery_level}%"
 
     def update_mastery(self, answers):
         student_mastery = 0
@@ -74,8 +75,9 @@ class StudentMastery(models.Model):
 
         avg_mastery = (student_mastery / total_mastery) * 100
 
+        self.questions_attempted += len(answers)
         if self.mastery_level:
-            self.mastery_level = (float(self.mastery_level) + avg_mastery) / 2
+            self.mastery_level = (self.mastery_level * (self.questions_attempted - len(answers)) + avg_mastery) / self.questions_attempted
         else:
             self.mastery_level = avg_mastery
 

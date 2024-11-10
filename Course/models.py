@@ -75,6 +75,13 @@ class Subtopic(models.Model):
 
     def __str__(self):
         return f"{self.subtopic_title} - {self.topic.topic_title}"
+    
+class LearningObjective(models.Model):
+    text = models.CharField(max_length=500)
+    subtopic = models.ForeignKey(Subtopic, on_delete=models.CASCADE, related_name='learning_objectives')
+
+    def __str__(self):
+        return self.text
 
 class Page(models.Model):
     subtopic = models.ForeignKey(Subtopic, on_delete=models.CASCADE, related_name='pages')

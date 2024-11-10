@@ -3,12 +3,17 @@ from django.conf import settings
 from rest_framework import serializers
 
 from Quiz.models import Quiz
-from .models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson, Page, Topic, Subtopic, ContentBlock,FileUpload
+from .models import Course, StudentCourseProgress, StudentLessonProgress, Syllabus, Lesson, Page, Topic, Subtopic, ContentBlock,FileUpload, LearningObjective
 from Exam.models import Exam
 from datetime import datetime
 import time
 
 from User.models import Specialization
+
+class LearningObjectiveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LearningObjective
+        fields = ['text', 'subtopic']
 
 class ContentBlockSerializer(serializers.ModelSerializer):
     block_id = serializers.ReadOnlyField(source='id')
