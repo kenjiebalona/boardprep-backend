@@ -4,13 +4,13 @@ from django.contrib.auth.hashers import check_password
 from django.contrib.auth import login, logout
 from django.contrib.sessions.models import Session
 from rest_framework import viewsets, status, permissions
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import AuthenticationFailed
-from .serializers import StudentSerializer, TeacherSerializer, UserSerializer, ContentCreatorSerializer, SpecializationSerializer
-from .models import Student, Teacher, User, Specialization, ContentCreator
+from .serializers import StudentSerializer, TeacherSerializer, UserSerializer, ContentCreatorSerializer, SpecializationSerializer, StudentMasterySerializer
+from .models import Student, Teacher, User, Specialization, ContentCreator, StudentMastery
 import jwt, datetime
 
 class StudentViewSet(viewsets.ModelViewSet):
@@ -228,3 +228,23 @@ class UpdateUser(APIView):
 class SpecializationViewSet(viewsets.ModelViewSet):
     queryset = Specialization.objects.all()
     serializer_class = SpecializationSerializer
+
+@api_view(['GET'])
+def get_student_mastery(request):
+    student_id = request.GET.get('student_id')
+
+    if not student_id:
+        return Response({'error': 'student_id parameter is required'}, status=400)
+
+    try:
+        student_mastery = StudentMastery.objects.filter(student_id=student_id)
+
+        if not student_mastery.exists():
+            return Response({'error': 'No mastery data found for this student'}, status=404)
+
+        serializer = StudentMasterySerializer(student_mastery, many=True)
+
+        return Response(serializer.data)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
