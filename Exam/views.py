@@ -90,18 +90,18 @@ class ExamViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def _calculate_question_counts(self, quiz_attempts):
-        total_subtopics = quiz_attempts.values('quiz__subtopic').distinct().count()
-        if total_subtopics == 0:
+        total_learning_objectives = quiz_attempts.values('quiz__learning_objective').distinct().count()
+        if total_learning_objectives == 0:
             return {}
 
-        avg_questions_per_subtopic = 25/ total_subtopics
+        avg_questions_per_learning_objective = 25/ total_learning_objectives
         question_counts = {}
 
         for attempt in quiz_attempts:
-            subtopic = attempt.quiz.subtopic
+            learning_objective = attempt.quiz.learning_objective
             weight = self._get_weight(attempt.score)
-            count = max(1, int(avg_questions_per_subtopic * weight))
-            question_counts[subtopic.id] = count
+            count = max(1, int(avg_questions_per_learning_objective * weight))
+            question_counts[learning_objective.id] = count
 
         return self._adjust_question_counts(question_counts)
 
@@ -120,7 +120,7 @@ class ExamViewSet(viewsets.ModelViewSet):
         print(f"Total questions before adjustment: {total_questions}")  # Debug statement
         adjustment_factor = 25 / total_questions
 
-        adjusted_counts = {subtopic_id: max(1, int(count * adjustment_factor)) for subtopic_id, count in question_counts.items()}
+        adjusted_counts = {learning_objective_id: max(1, int(count * adjustment_factor)) for learning_objective_id, count in question_counts.items()}
 
         print(f"Adjusted question counts: {adjusted_counts}")  # Debug statement
 
@@ -142,10 +142,10 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def _select_questions(self, exam, question_counts, difficulty_distribution):
         selected_questions = []
-        for subtopic_id, count in question_counts.items():
-            for difficulty, proportion in difficulty_distribution[subtopic_id].items():
+        for learning_objective_id, count in question_counts.items():
+            for difficulty, proportion in difficulty_distribution[learning_objective_id].items():
                 diff_count = int(count * proportion)
-                questions = Question.objects.filter(subtopic_id=subtopic_id, difficulty=difficulty).order_by('?')[:diff_count]
+                questions = Question.objects.filter(learning_objective_id=learning_objective_id, difficulty=difficulty).order_by('?')[:diff_count]
                 selected_questions.extend(questions)
         return selected_questions
 
@@ -180,15 +180,15 @@ class ExamViewSet(viewsets.ModelViewSet):
         attempt.save()
 
         if not passed:
-            failed_subtopics = self.calculate_failed_subtopics(request.data['answers'])
-            failed_subtopic_ids = [subtopic.id for subtopic in failed_subtopics]
-            attempt.failed_lessons.set(failed_subtopic_ids)
+            failed_learning_objectives = self.calculate_failed_subtopics(request.data['answers'])
+            failed_learning_objective_ids = [learning_objective.id for learning_objective in failed_learning_objectives]
+            attempt.failed_lessons.set(failed_learning_objective_ids)
             StudentLessonProgress.objects.filter(
                 student=student,
-                lesson__in=failed_subtopic_ids
+                lesson__in=failed_learning_objective_ids
             ).update(is_completed=False)
 
-            print(f"Failed subtopics set: {failed_subtopics}")  # Debug print
+            print(f"Failed learning_objectives set: {failed_learning_objectives}")  # Debug print
 
         return Response({
             "detail": "Exam submitted successfully.",
@@ -222,46 +222,46 @@ class ExamViewSet(viewsets.ModelViewSet):
 
         answers = StudentAnswer.objects.filter(exam_attempt=attempt)
 
-        subtopic_answers = {}
+        learning_objective_answers = {}
         for answer in answers:
-            subtopic = answer.question.subtopic
-            if subtopic not in subtopic_answers:
-                subtopic_answers[subtopic] = []
-            subtopic_answers[subtopic].append({
+            learning_objective = answer.question.learning_objective
+            if learning_objective not in learning_objective_answers:
+                learning_objective_answers[learning_objective] = []
+            learning_objective_answers[learning_objective].append({
                 'question': answer.question,
                 'is_correct': answer.is_correct
             })
 
-        for subtopic, answers in subtopic_answers.items():
-            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.exam.student, subtopic=subtopic)
+        for learning_objective, answers in learning_objective_answers.items():
+            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.exam.student, learning_objective=learning_objective)
             student_mastery.update_mastery(answers)
 
         return correct_answers
 
     def calculate_failed_subtopics(self, answers):
-        subtopic_scores = {}
+        learning_objective_scores = {}
         for answer in answers:
             question_id = answer.get('question_id')
             if not question_id:
                 continue
             try:
                 question = Question.objects.get(id=question_id)
-                subtopic = question.subtopic
+                learning_objective = question.learning_objective
             except Question.DoesNotExist:
                 continue
 
-            if subtopic not in subtopic_scores:
-                subtopic_scores[subtopic] = {'correct': 0, 'total': 0}
-            subtopic_scores[subtopic]['total'] += 1
+            if learning_objective not in learning_objective_scores:
+                learning_objective_scores[learning_objective] = {'correct': 0, 'total': 0}
+            learning_objective_scores[learning_objective]['total'] += 1
             if answer.get('is_correct'):
-                subtopic_scores[subtopic]['correct'] += 1
+                learning_objective_scores[learning_objective]['correct'] += 1
 
-        failed_subtopics = [
-            subtopic for subtopic, scores in subtopic_scores.items()
+        failed_learning_objectives = [
+            learning_objective for learning_objective, scores in learning_objective_scores.items()
             if scores['correct'] / scores['total'] < 0.75
         ]
 
-        return failed_subtopics
+        return failed_learning_objectives
 
     @action(detail=True, methods=['get'])
     def detailed_results(self, request, pk=None):
@@ -333,12 +333,12 @@ class ExamViewSet(viewsets.ModelViewSet):
         attempt = StudentExamAttempt.objects.filter(exam=exam).order_by('-attempt_number').last()
 
         if not attempt or attempt.passed:
-            return Response({"detail": "No failed subtopics found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "No failed learning_objectives found."}, status=status.HTTP_404_NOT_FOUND)
 
-        failed_subtopics = attempt.failed_lessons.all()
-        subtopic_data = [{"subtopic_id": subtopic.subtopic_id, "subtopic_title": subtopic.subtopic_title} for subtopic in failed_subtopics]
+        failed_learning_objectives = attempt.failed_lessons.all()
+        learning_objective_data = [{"learning_objective_id": learning_objective.learning_objective_id, "learning_objective_title": learning_objective.learning_objective_title} for learning_objective in failed_learning_objectives]
 
-        return Response({"failed_subtopics": subtopic_data}, status=status.HTTP_200_OK)
+        return Response({"failed_learning_objectives": learning_objective_data}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def get_exam_questions(self, request, pk=None):
@@ -365,7 +365,7 @@ class ExamViewSet(viewsets.ModelViewSet):
 
     def generate_questions_for_attempt(self, exam, student, attempt_number):
         questions = []
-        failed_subtopics = []
+        failed_learning_objectives = []
 
         if attempt_number > 1:
             previous_attempt = StudentExamAttempt.objects.filter(
@@ -373,40 +373,40 @@ class ExamViewSet(viewsets.ModelViewSet):
                 attempt_number=attempt_number-1
             ).first()
             if previous_attempt:
-                failed_subtopics = previous_attempt.failed_lessons.all()
+                failed_learning_objectives = previous_attempt.failed_lessons.all()
 
-        available_questions = Question.objects.filter(subtopic__syllabus__course=exam.course)
+        available_questions = Question.objects.filter(learning_objective__syllabus__course=exam.course)
         difficulty_distribution = self._get_difficulty_distribution()
 
-        total_subtopics = Lesson.objects.filter(syllabus__course=exam.course).count()
-        questions_per_subtopic = 25 // total_subtopics
+        total_learning_objectives = Lesson.objects.filter(syllabus__course=exam.course).count()
+        questions_per_learning_objective = 25 // total_learning_objectives
 
-        for subtopic in failed_subtopics:
-            subtopic_questions = self._select_questions_for_subtopic(
-                subtopic.subtopic_id, questions_per_subtopic, difficulty_distribution,
-                available_questions.filter(subtopic=subtopic)
+        for learning_objective in failed_learning_objectives:
+            learning_objective_questions = self._select_questions_for_learning_objective(
+                learning_objective.learning_objective_id, questions_per_learning_objective, difficulty_distribution,
+                available_questions.filter(learning_objective=learning_objective)
             )
-            questions.extend(subtopic_questions)
+            questions.extend(learning_objective_questions)
 
         remaining_count = 35 - len(questions)
-        other_subtopics = Lesson.objects.filter(syllabus__course=exam.course).exclude(lesson_id__in=[lesson.lesson_id for lesson in failed_subtopics])
-        for subtopic in other_subtopics:
+        other_learning_objectives = Lesson.objects.filter(syllabus__course=exam.course).exclude(lesson_id__in=[lesson.lesson_id for lesson in failed_learning_objectives])
+        for learning_objective in other_learning_objectives:
             if len(questions) >= 35:
                 break
-            count = min(questions_per_subtopic, remaining_count)
-            subtopic_questions = self._select_questions_for_subtopic(
-                subtopic.lesson_id, count, difficulty_distribution,
-                available_questions.filter(subtopic=subtopic)
+            count = min(questions_per_learning_objective, remaining_count)
+            learning_objective_questions = self._select_questions_for_learning_objective(
+                learning_objective.lesson_id, count, difficulty_distribution,
+                available_questions.filter(learning_objective=learning_objective)
             )
-            questions.extend(subtopic_questions)
+            questions.extend(learning_objective_questions)
 
         questions = questions[:35]
         random.shuffle(questions)
         return questions
 
-    def _select_questions_for_lesson(self, subtopic_id, count, difficulty_distribution, question_queryset):
+    def _select_questions_for_lesson(self, learning_objective_id, count, difficulty_distribution, question_queryset):
         selected_questions = []
-        for difficulty, proportion in difficulty_distribution[subtopic_id].items():
+        for difficulty, proportion in difficulty_distribution[learning_objective_id].items():
             diff_count = int(count * proportion)
             questions = question_queryset.filter(difficulty=difficulty).order_by('?')[:diff_count]
             selected_questions.extend(questions)
@@ -515,11 +515,11 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             correct_paragraph = "Questions you answered correctly:\n\n"
             for answer in correct_answers:
                 question_text = answer.question.text
-                subtopic_title = answer.question.subtopic.subtopic_title
+                learning_objective_title = answer.question.learning_objective.text
                 selected_choice_text = answer.selected_choice.text
 
                 correct_paragraph += (
-                    f"Subtopic: {subtopic_title}\n"
+                    f"Learning Objective: {learning_objective_title}\n"
                     f"Question: {question_text}\n"
                     f"Your Answer: {selected_choice_text}\n\n"
                 )
@@ -530,13 +530,14 @@ class StudentExamAttemptViewSet(viewsets.ModelViewSet):
             wrong_paragraph = "Questions you answered incorrectly:\n\n"
             for answer in wrong_answers:
                 question_text = answer.question.text
-                subtopic_title = answer.question.subtopic.subtopic_title
+                # learning_objective_title = answer.question.learning_objective.learning_objective_title
+                learning_objective_title = answer.question.learning_objective.text
                 selected_choice_text = answer.selected_choice.text
                 correct_choice = Choice.objects.filter(question=answer.question, is_correct=True).first()
                 correct_answer_text = correct_choice.text if correct_choice else "Not available"
 
                 wrong_paragraph += (
-                    f"Subtopic: {subtopic_title}\n"
+                    f"Learning Objective: {learning_objective_title}\n"
                     f"Question: {question_text}\n"
                     f"Your Answer: {selected_choice_text}\n"
                     f"Correct Answer: {correct_answer_text}\n\n"
