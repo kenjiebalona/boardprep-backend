@@ -77,7 +77,7 @@ class StudentPreassessmentAttemptViewSet(viewsets.ModelViewSet):
             })
 
         for subtopic, answers in subtopic_answers.items():
-            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, subtopic=subtopic)
+            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, learning_objective=subtopic)
             student_mastery.update_mastery(answers)
 
         attempt.score = correct_answers_count
