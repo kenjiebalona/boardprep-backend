@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from Question.serializer import QuestionSerializer
-from .models import Mocktest, StudentMocktesttAttempt
+from .models import Mocktest, StudentMocktestAttempt
 
 
 class MocktestSerializer(serializers.ModelSerializer):
@@ -14,5 +14,5 @@ class MocktestSerializer(serializers.ModelSerializer):
 
 class StudentMocktestAttemptSerializer(serializers.ModelSerializer):
     class Meta:
-        model = StudentMocktesttAttempt
+        model = StudentMocktestAttempt
         fields = '__all__'

@@ -15,11 +15,12 @@ from .serializer import MocktestSerializer, StudentMocktestAttemptSerializer
 # Create your views here.
 class MocktestViewSet(viewsets.ModelViewSet):
     queryset = Mocktest.objects.all()
-    serializer_class = StudentMocktestAttempt
+    serializer_class = MocktestSerializer
 
     @action(detail=False, methods=['get'])
     def today(self, request):
         course_id = request.query_params.get('course_id')
+        course_id = "FME101"
         today = timezone.now().date()
 
         if not course_id:
@@ -27,20 +28,19 @@ class MocktestViewSet(viewsets.ModelViewSet):
 
         try:
             course = Course.objects.get(course_id=course_id)
-            subtopics = course.syllabus.lessons.values_list('topics__subtopics', flat=True)
+            learning_objectives = course.syllabus.lessons.values_list('topics__learning_objectives', flat=True)
         except Course.DoesNotExist:
             return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        mocketst, created = Mocktest.objects.get_or_create(date=today, course=course)
+        mocktest, created = Mocktest.objects.get_or_create(date=today, course=course)
 
         if created:
-            filter_by = {'subtopic__in': subtopics}
             try:
-                mocketst.generate_questions(num_easy=20, num_medium=29, num_hard=1, filter_by=filter_by)
+                mocktest.generate_questions(num_easy=22, num_medium=12, num_hard=16)
             except ValueError as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = self.get_serializer(mocketst)
+        serializer = self.get_serializer(mocktest)
         return Response(serializer.data)
 
     def list(self, request, *args, **kwargs):
@@ -69,7 +69,7 @@ class StudentMocktestAttemptViewSet(viewsets.ModelViewSet):
 
         subtopic_answers = {}
         for answer in answers:
-            subtopic = answer.question.subtopic
+            subtopic = answer.question.learning_objective
             if subtopic not in subtopic_answers:
                 subtopic_answers[subtopic] = []
             subtopic_answers[subtopic].append({
@@ -78,7 +78,7 @@ class StudentMocktestAttemptViewSet(viewsets.ModelViewSet):
             })
 
         for subtopic, answers in subtopic_answers.items():
-            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, subtopic=subtopic)
+            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, learning_objective=subtopic)
             student_mastery.update_mastery(answers)
 
         attempt.score = correct_answers_count

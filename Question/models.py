@@ -37,6 +37,7 @@ class StudentAnswer(models.Model):
     exam_attempt = models.ForeignKey('Exam.StudentExamAttempt', null=True, blank=True, on_delete=models.CASCADE)
     challenge_attempt = models.ForeignKey('Challenge.StudentChallengeAttempt', null=True, blank=True, on_delete=models.CASCADE)
     preassessment_attempt = models.ForeignKey('Preassessment.StudentPreassessmentAttempt', null=True, blank=True, on_delete=models.CASCADE)
+    mocktest_attempt = models.ForeignKey('Mocktest.StudentMocktestAttempt', null=True, blank=True, on_delete=models.CASCADE)
 
     def __str__(self):
         student_id = self.student.user_name if self.student else "None"
