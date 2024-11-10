@@ -230,6 +230,9 @@ class SpecializationViewSet(viewsets.ModelViewSet):
     serializer_class = SpecializationSerializer
 
 class StudentMasteryView(viewsets.ModelViewSet):
+    def get_queryset(self, student_id):
+        return StudentMastery.objects.filter(student_id=student_id)
+
     def get(self, request, *args, **kwargs):
         student_id = request.GET.get('student_id')
 
