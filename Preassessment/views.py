@@ -19,22 +19,22 @@ class PreassessmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def today(self, request):
-        course_id = request.query_params.get('course_id')
+        # course_id = request.query_params.get('course_id')
         today = timezone.now().date()
 
-        if not course_id:
-            return Response({"detail": "course_id parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+        # if not course_id:
+        #     return Response({"detail": "course_id parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            course = Course.objects.get(course_id=course_id)
-            learning_objectives = course.syllabus.lessons.values_list('topics__learning_objectives', flat=True)
-        except Course.DoesNotExist:
-            return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
+        # try:
+        #     course = Course.objects.get(course_id=course_id)
+        #     learning_objectives = course.syllabus.lessons.values_list('topics__learning_objectives', flat=True)
+        # except Course.DoesNotExist:
+        #     return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        preassessment, created = Preassessment.objects.get_or_create(date=today, course=course)
+        preassessment, created = Preassessment.objects.get_or_create(date=today)
 
         if created:
-            filter_by = {'learning_objective__in': learning_objectives}
+            # filter_by = {'learning_objective__in': learning_objectives}
             try:
                 preassessment.generate_questions(num_easy=22, num_medium=12, num_hard=16)
             except ValueError as e:
