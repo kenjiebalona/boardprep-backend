@@ -5,12 +5,12 @@ from Question.models import Question, QuestionGenerator
 
 # Create your models here.
 class Mocktest(QuestionGenerator):
-    preassessmentID = models.BigAutoField(primary_key=True)
-    course = models.ForeignKey('Course.Course', on_delete=models.CASCADE)  
+    mocktestID = models.BigAutoField(primary_key=True)
+    course = models.ForeignKey('Course.Course', on_delete=models.CASCADE)
     date = models.DateField(default=timezone.now, unique=True)
 
     def __str__(self):
-        return f"Pre Assessment ID: {self.preassessmentID}"
+        return f"MockTest ID: {self.mocktestID}"
 
     def generate_questions(self, num_easy, num_medium, num_hard, filter_by=None):
         questions = super().generate_questions(num_easy, num_medium, num_hard, filter_by)

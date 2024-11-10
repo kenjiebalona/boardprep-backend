@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'Challenge',
     'Discussion',
     'Preassessment',
+    'Mocktest'
     'rest_framework',
     'storages',
     'django_ckeditor_5',
@@ -126,7 +127,7 @@ DATABASES = {
         'PASSWORD': os.environ.get('PGPASSWORD'),
         'HOST': os.environ.get('PGHOST'),
         'PORT': os.environ.get('PGPORT'),
-        
+
     }
 }
 
