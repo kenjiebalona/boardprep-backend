@@ -7,7 +7,7 @@ from Question.models import Question, QuestionGenerator
 class Mocktest(QuestionGenerator):
     mocktestID = models.BigAutoField(primary_key=True)
     course = models.ForeignKey('Course.Course', on_delete=models.CASCADE)
-    date = models.DateField(default=timezone.now, unique=True)
+    date = models.DateField(default=timezone.now, unique=False)
 
     def __str__(self):
         return f"MockTest ID: {self.mocktestID}"

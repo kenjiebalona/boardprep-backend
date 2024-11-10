@@ -32,11 +32,11 @@ class MocktestViewSet(viewsets.ModelViewSet):
         except Course.DoesNotExist:
             return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        mocktest, created = Mocktest.objects.get_or_create(date=today, course=course)
+        mocktest, created = Mocktest.objects.create(date=today, course=course)
 
         if created:
             try:
-                mocktest.generate_questions(num_easy=22, num_medium=12, num_hard=16)
+                mocktest.generate_questions(num_easy=1, num_medium=1, num_hard=1)
             except ValueError as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
