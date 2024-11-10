@@ -13,7 +13,7 @@ from User.models import Specialization
 class LearningObjectiveSerializer(serializers.ModelSerializer):
     class Meta:
         model = LearningObjective
-        fields = ['text', 'subtopic']
+        fields = ['text', 'subtopic', 'id']
 
 class ContentBlockSerializer(serializers.ModelSerializer):
     block_id = serializers.ReadOnlyField(source='id')
