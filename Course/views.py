@@ -141,7 +141,7 @@ class PageViewSet(viewsets.ModelViewSet):
                 try:
                     mastery = 0.0
                     for objective in objectives:
-                        mastery += StudentMastery.objects.get(student_id=student_id, learning_objective_id=objective.id).mastery_level
+                        mastery += float(StudentMastery.objects.get(student_id=student_id, learning_objective_id=objective.id).mastery_level)
                     mastery /= objectives.count()
                     
                     # Pwede pani mamodify kung asa ka na sa mastery level
