@@ -24,17 +24,17 @@ class PreassessmentViewSet(viewsets.ModelViewSet):
 
         if not course_id:
             return Response({"detail": "course_id parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             course = Course.objects.get(course_id=course_id)
-            subtopics = course.syllabus.lessons.values_list('topics__subtopics', flat=True)
+            learning_objectives = course.syllabus.lessons.values_list('topics__learning_objectives', flat=True)
         except Course.DoesNotExist:
             return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
         preassessment, created = Preassessment.objects.get_or_create(date=today, course=course)
 
         if created:
-            filter_by = {'subtopic__in': subtopics}
+            filter_by = {'learning_objective__in': learning_objectives}
             try:
                 preassessment.generate_questions(num_easy=20, num_medium=29, num_hard=1, filter_by=filter_by)
             except ValueError as e:
@@ -93,7 +93,7 @@ class StudentPreassessmentAttemptViewSet(viewsets.ModelViewSet):
             'total_questions': attempt.total_questions,
             'time_taken': str(time_taken)
         }, status=status.HTTP_200_OK)
-    
+
     def get_queryset(self):
         student_id = self.request.query_params.get('student_id')
         course_id = self.request.query_params.get('course_id')
@@ -105,7 +105,7 @@ class StudentPreassessmentAttemptViewSet(viewsets.ModelViewSet):
         if course_id:
             preassessments = Preassessment.objects.filter(course__course_id=course_id)
             queryset = queryset.filter(preassessment__in=preassessments)
-        
+
         return queryset
 
     def list(self, request, *args, **kwargs):
