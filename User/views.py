@@ -229,22 +229,22 @@ class SpecializationViewSet(viewsets.ModelViewSet):
     queryset = Specialization.objects.all()
     serializer_class = SpecializationSerializer
 
-@api_view(['GET'])
-def get_student_mastery(request):
-    student_id = request.GET.get('student_id')
+class StudentMasteryView(viewsets.ModelViewSet):
+    def get(self, request, *args, **kwargs):
+        student_id = request.GET.get('student_id')
 
-    if not student_id:
-        return Response({'error': 'student_id parameter is required'}, status=400)
+        if not student_id:
+            return Response({'error': 'student_id parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        student_mastery = StudentMastery.objects.filter(student_id=student_id)
+        try:
+            student_mastery = StudentMastery.objects.filter(student_id=student_id)
 
-        if not student_mastery.exists():
-            return Response({'error': 'No mastery data found for this student'}, status=404)
+            if not student_mastery.exists():
+                return Response({'error': 'No mastery data found for this student'}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = StudentMasterySerializer(student_mastery, many=True)
+            serializer = StudentMasterySerializer(student_mastery, many=True)
 
-        return Response(serializer.data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

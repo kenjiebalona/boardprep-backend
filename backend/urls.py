@@ -5,12 +5,12 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from Challenge.views import ChallengeViewSet, StudentChallengeAttemptViewSet
-from Course.views import CourseViewSet, LearningObjectiveViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet, UploadFileView 
+from Course.views import CourseViewSet, LearningObjectiveViewSet, StudentCourseProgressViewSet, StudentLessonProgressViewSet, SyllabusViewSet, LessonViewSet, FileUploadViewSet, PageViewSet, ContentBlockViewSet, TopicViewSet, SubtopicViewSet, UploadFileView
 from Class.views import ClassViewSet, PostViewSet, CommentViewSet, JoinRequestViewSet, ActivityViewSet, SubmissionViewSet, AttachmentViewSet
 from Exam.views import ExamViewSet, StudentExamAttemptViewSet
 from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
 from Quiz.views import QuizViewSet, StudentQuizAttemptViewSet
-from User.views import StudentViewSet, TeacherViewSet, SpecializationViewSet
+from User.views import StudentViewSet, TeacherViewSet, SpecializationViewSet, StudentMasteryView
 from Preassessment.views import PreassessmentViewSet, StudentPreassessmentAttemptViewSet
 from Course import views
 
@@ -52,7 +52,7 @@ router.register(r'topics', TopicViewSet, basename='topic')
 router.register(r'specializations', SpecializationViewSet, basename='specialization')
 router.register(r'preassessment', PreassessmentViewSet, basename='preassessment')
 router.register(r'studentPreassessmentAttempt', StudentPreassessmentAttemptViewSet, basename='studentPreassessmentAttempt')
-
+router.register(r'mastery', StudentMasteryView, basename='get_student_mastery')
 
 # router.register(r'daily-challenges', DailyChallengeViewSet, basename='daily-challenges')
 # router.register(r'daily-challenge-questions', DailyChallengeQuestionViewSet, basename='daily-challenge-questions')
