@@ -230,23 +230,27 @@ class SpecializationViewSet(viewsets.ModelViewSet):
     serializer_class = SpecializationSerializer
 
 class StudentMasteryView(viewsets.ModelViewSet):
-    def get_queryset(self, student_id):
-        return StudentMastery.objects.filter(student_id=student_id)
+    serializer_class = StudentMasterySerializer
 
-    def get(self, request, *args, **kwargs):
-        student_id = request.GET.get('student_id')
+    def get_queryset(self):
+        student_id = self.request.query_params.get('student_id')
+
+        if student_id:
+            return StudentMastery.objects.filter(student_id=student_id)
+        return StudentMastery.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        student_id = self.request.query_params.get('student_id')
 
         if not student_id:
             return Response({'error': 'student_id parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            student_mastery = StudentMastery.objects.filter(student_id=student_id)
-
-            if not student_mastery.exists():
+            queryset = self.get_queryset()
+            if not queryset.exists():
                 return Response({'error': 'No mastery data found for this student'}, status=status.HTTP_404_NOT_FOUND)
 
-            serializer = StudentMasterySerializer(student_mastery, many=True)
-
+            serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
