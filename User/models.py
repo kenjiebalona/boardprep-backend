@@ -77,7 +77,7 @@ class StudentMastery(models.Model):
 
         self.questions_attempted += len(answers)
         if self.mastery_level:
-            self.mastery_level = (self.mastery_level * (self.questions_attempted - len(answers)) + avg_mastery) / self.questions_attempted
+            self.mastery_level = (float(self.mastery_level) * float(self.questions_attempted - len(answers)) + avg_mastery) / self.questions_attempted
         else:
             self.mastery_level = avg_mastery
 

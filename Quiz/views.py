@@ -17,7 +17,7 @@ class QuizViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            num_easy = 3  # Example hardcoded values
+            num_easy = 5  # Example hardcoded values
             num_medium = 3
             num_hard = 2
             quiz = serializer.save()
@@ -131,18 +131,18 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
         answers = StudentAnswer.objects.filter(quiz_attempt=attempt)
         correct_answers_count = answers.filter(is_correct=True).count()
 
-        subtopic_answers = {}
+        learning_objective_answers = {}
         for answer in answers:
-            subtopic = answer.question.subtopic
-            if subtopic not in subtopic_answers:
-                subtopic_answers[subtopic] = []
-            subtopic_answers[subtopic].append({
+            learning_objective = answer.question.learning_objective
+            if learning_objective not in learning_objective_answers:
+                learning_objective_answers[learning_objective] = []
+            learning_objective_answers[learning_objective].append({
                 'question': answer.question,
                 'is_correct': answer.is_correct
             })
 
-        for subtopic, answers in subtopic_answers.items():
-            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.quiz.student, subtopic=subtopic)
+        for learning_objective, answers in learning_objective_answers.items():
+            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.quiz.student, learning_objective=learning_objective)
             student_mastery.update_mastery(answers)
 
         attempt.score = correct_answers_count
