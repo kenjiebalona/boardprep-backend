@@ -1,15 +1,17 @@
+from collections import defaultdict
+import random
 from django.db import models
 from django.utils import timezone
 
-from Question.models import QuestionGenerator
+from Question.models import QuestionGenerator, Question
 
-from Course.models import StudentLessonProgress
+from Course.models import LearningObjective, StudentLessonProgress
 from Question.models import StudentAnswer
 
 # Create your models here.
 class Quiz(QuestionGenerator):
     id = models.AutoField(primary_key=True)
-    learning_objective = models.ForeignKey('Course.LearningObjective', on_delete=models.CASCADE)
+    lesson = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
     class_instance = models.ForeignKey('Class.Class', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
@@ -21,8 +23,34 @@ class Quiz(QuestionGenerator):
         return self.title
 
     def generate_questions(self, num_easy, num_medium, num_hard):
-        filter_by = {'learning_objective': self.learning_objective}
-        return super().generate_questions(num_easy, num_medium, num_hard, filter_by)
+        # Gather all learning objectives associated with the lesson through its topics and subtopics
+        learning_objectives = LearningObjective.objects.filter(
+            subtopic__topic__lesson=self.lesson
+        )
+
+        questions_by_difficulty = defaultdict(list)
+
+        # For each learning objective, gather questions by difficulty level
+        for objective in learning_objectives:
+            easy_questions = Question.objects.filter(learning_objective=objective, difficulty=1).order_by('?')[:num_easy]
+            medium_questions = Question.objects.filter(learning_objective=objective, difficulty=2).order_by('?')[:num_medium]
+            hard_questions = Question.objects.filter(learning_objective=objective, difficulty=3).order_by('?')[:num_hard]
+
+            # Add questions to the grouped lists
+            questions_by_difficulty[1].extend(easy_questions)
+            questions_by_difficulty[2].extend(medium_questions)
+            questions_by_difficulty[3].extend(hard_questions)
+
+        # Consolidate all questions, ensuring they’re shuffled
+        selected_easy_questions = random.sample(questions_by_difficulty[1], min(5, len(questions_by_difficulty[1])))
+        selected_medium_questions = random.sample(questions_by_difficulty[2], min(3, len(questions_by_difficulty[2])))
+        selected_hard_questions = random.sample(questions_by_difficulty[3], min(2, len(questions_by_difficulty[3])))
+
+        # Combine selected questions and shuffle
+        all_questions = selected_easy_questions + selected_medium_questions + selected_hard_questions
+        random.shuffle(all_questions)
+
+        return all_questions
 
 
 class StudentQuizAttempt(models.Model):

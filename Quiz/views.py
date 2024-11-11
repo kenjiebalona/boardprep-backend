@@ -17,9 +17,9 @@ class QuizViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            num_easy = 5  # Example hardcoded values
-            num_medium = 3
-            num_hard = 2
+            num_easy = 1  # Example hardcoded values
+            num_medium = 1
+            num_hard = 1
             quiz = serializer.save()
             try:
                 questions = quiz.generate_questions(num_easy, num_medium, num_hard)
