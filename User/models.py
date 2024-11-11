@@ -55,31 +55,35 @@ class StudentMastery(models.Model):
     learning_objective = models.ForeignKey("Course.LearningObjective", on_delete=models.CASCADE, related_name='mastery')
     mastery_level = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)  # Mastery as a percentage
     questions_attempted = models.IntegerField(default=0)
+    total_weights_attempted = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    total_weight_correct = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.student.user_name} - {self.objective} - Mastery: {self.mastery_level}%"
 
     def update_mastery(self, answers):
-        student_mastery = 0
-        total_mastery = 0
         weights = { # weights for each difficulty pwede pa ma adjust
             1: 0.5,
             2: 0.75,
             3: 1
         }
 
-        for answer in answers:
-            student_mastery += weights[answer['question'].difficulty] * answer['is_correct']
-            total_mastery += weights[answer['question'].difficulty]
+        current_total_weights_attempted = 0
+        current_total_weights_correct = 0
 
-        avg_mastery = (student_mastery / total_mastery) * 100
+        for answer in answers:
+            current_total_weights_correct += weights[answer['question'].difficulty] * answer['is_correct']
+            current_total_weights_attempted += weights[answer['question'].difficulty]
+
+        self.total_weights_attempted += current_total_weights_attempted
+        self.total_weight_correct += current_total_weights_correct
 
         self.questions_attempted += len(answers)
         if self.mastery_level:
-            self.mastery_level = (float(self.mastery_level) * float(self.questions_attempted - len(answers)) + avg_mastery) / self.questions_attempted
+            self.mastery_level = (self.total_weight_correct / self.total_weights_attempted) * 100
         else:
-            self.mastery_level = avg_mastery
+            self.mastery_level = 0.0
 
         self.save()
 
