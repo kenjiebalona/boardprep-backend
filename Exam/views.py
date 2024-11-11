@@ -27,8 +27,8 @@ class ExamViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            num_easy = 20  # Example hardcoded values
-            num_medium = 28
+            num_easy = 5  # Example hardcoded values
+            num_medium = 5
             num_hard = 5
             exam = serializer.save()
             try:
@@ -72,6 +72,7 @@ class ExamViewSet(viewsets.ModelViewSet):
                 exam_questions = ExamQuestion.objects.filter(exam=exam)
                 avg_difficulty = exam_questions.aggregate(Avg('question__difficulty'))['question__difficulty__avg']
                 exam.questions.set([eq.question for eq in exam_questions])
+                print("Exam questions: ", exam.questions)
                 exam.save()
                 response_data = self.get_serializer(exam).data
                 response_data.update({
@@ -90,18 +91,18 @@ class ExamViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def _calculate_question_counts(self, quiz_attempts):
-        total_learning_objectives = quiz_attempts.values('quiz__learning_objective').distinct().count()
-        if total_learning_objectives == 0:
+        total_lessons = quiz_attempts.values('quiz__lesson').distinct().count()
+        if total_lessons == 0:
             return {}
 
-        avg_questions_per_learning_objective = 25/ total_learning_objectives
+        avg_questions_per_lesson = 25/ total_lessons
         question_counts = {}
 
         for attempt in quiz_attempts:
-            learning_objective = attempt.quiz.learning_objective
+            lesson = attempt.quiz.lesson
             weight = self._get_weight(attempt.score)
-            count = max(1, int(avg_questions_per_learning_objective * weight))
-            question_counts[learning_objective.id] = count
+            count = max(1, int(avg_questions_per_lesson * weight))
+            question_counts[lesson.id + 4] = count
 
         return self._adjust_question_counts(question_counts)
 

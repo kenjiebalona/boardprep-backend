@@ -64,8 +64,8 @@ class StudentMastery(models.Model):
 
     def update_mastery(self, answers):
         weights = { # weights for each difficulty pwede pa ma adjust
-            1: 0.5,
-            2: 0.75,
+            1: 0.75,
+            2: 0.85,
             3: 1
         }
 
@@ -76,14 +76,11 @@ class StudentMastery(models.Model):
             current_total_weights_correct += weights[answer['question'].difficulty] * answer['is_correct']
             current_total_weights_attempted += weights[answer['question'].difficulty]
 
-        self.total_weights_attempted += current_total_weights_attempted
-        self.total_weight_correct += current_total_weights_correct
+        self.total_weights_attempted = float(self.total_weights_attempted) + current_total_weights_attempted
+        self.total_weight_correct = float(self.total_weight_correct) + current_total_weights_correct
 
         self.questions_attempted += len(answers)
-        if self.mastery_level:
-            self.mastery_level = (self.total_weight_correct / self.total_weights_attempted) * 100
-        else:
-            self.mastery_level = 0.0
+        self.mastery_level = (self.total_weight_correct / self.total_weights_attempted) * 100
 
         self.save()
 
