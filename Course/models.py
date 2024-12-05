@@ -109,7 +109,7 @@ class ContentBlock(models.Model):
 
     page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name='content_blocks')
     block_type = models.CharField(max_length=50, choices=BLOCK_TYPE_CHOICES)
-    difficulty = models.CharField(max_length=50, choices=DIFFICULTY_CHOICES)
+    difficulty = models.CharField(max_length=50, choices=DIFFICULTY_CHOICES, null=True, blank=True)
     content = models.TextField()
     file = models.FileField(upload_to='content_blocks/files/', null=True, blank=True)
 
