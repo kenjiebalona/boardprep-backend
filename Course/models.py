@@ -95,9 +95,10 @@ class Page(models.Model):
     
 class ContentBlock(models.Model):
     BLOCK_TYPE_CHOICES = [
-        ('objective', 'Objective'),
         ('lesson', 'Lesson Content'),
         ('example', 'Example'),
+        ('case', 'Case Study'), 
+        ('practice', 'Practice'), 
     ]
 
     DIFFICULTY_CHOICES = [
@@ -114,6 +115,10 @@ class ContentBlock(models.Model):
 
     def __str__(self):
         return f"{self.get_block_type_display()} ({self.get_difficulty_display()}) - {self.page.subtopic.subtopic_title}"
+    def save(self, *args, **kwargs):
+        if self.block_type == 'lesson':
+            self.difficulty = None
+        super().save(*args, **kwargs)
 
 class FileUpload(models.Model):
     file = models.FileField(upload_to='uploads/')
