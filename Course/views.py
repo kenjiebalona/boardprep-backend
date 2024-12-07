@@ -156,7 +156,9 @@ class PageViewSet(viewsets.ModelViewSet):
                     pages = pages.prefetch_related(
                         models.Prefetch(
                             'content_blocks',
-                            queryset=ContentBlock.objects.filter(difficulty=difficulty_level)
+                            queryset=ContentBlock.objects.filter(
+                                models.Q(difficulty=difficulty_level) | models.Q(difficulty__isnull=True)
+                            )
                         )
                     )
 

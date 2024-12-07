@@ -97,7 +97,7 @@ class ContentBlock(models.Model):
     BLOCK_TYPE_CHOICES = [
         ('lesson', 'Lesson Content'),
         ('example', 'Example'),
-        ('case', 'Case Study'), 
+        ('case study', 'Case Study'), 
         ('practice', 'Practice'), 
     ]
 
