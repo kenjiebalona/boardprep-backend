@@ -80,7 +80,7 @@ class StudentMastery(models.Model):
         self.total_weight_correct = float(self.total_weight_correct) + current_total_weights_correct
 
         self.questions_attempted += len(answers)
-        self.mastery_level = (self.total_weight_correct / self.total_weights_attempted) * 100
+        self.mastery_level = (current_total_weights_correct / current_total_weights_attempted) * 100
 
         self.save()
 
