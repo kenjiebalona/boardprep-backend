@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import AuthenticationFailed
+
+from Course.models import Course, LearningObjective
 from .serializers import StudentSerializer, TeacherSerializer, UserSerializer, ContentCreatorSerializer, SpecializationSerializer, StudentMasterySerializer
 from .models import Student, Teacher, User, Specialization, ContentCreator, StudentMastery
 import jwt, datetime
@@ -237,21 +239,102 @@ class StudentMasteryView(viewsets.ModelViewSet):
 
         if student_id:
             return StudentMastery.objects.filter(student_id=student_id)
+
         return StudentMastery.objects.none()
+    
+
 
     def list(self, request, *args, **kwargs):
         student_id = self.request.query_params.get('student_id')
+        course_id = self.request.query_params.get('course_id')
 
         if not student_id:
             return Response({'error': 'student_id parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            queryset = self.get_queryset()
-            if not queryset.exists():
-                return Response({'error': 'No mastery data found for this student'}, status=status.HTTP_404_NOT_FOUND)
+        masteries = StudentMastery.objects.filter(student_id=student_id)
+        if not masteries.exists():
+            return Response({'error': 'No mastery data found for this student'}, status=status.HTTP_404_NOT_FOUND)
 
-            serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+        if course_id:
+            course = get_object_or_404(Course, course_id=course_id)
+            syllabus = course.syllabus
+            if not syllabus:
+                return Response({'error': 'No syllabus found for this course'}, status=status.HTTP_404_NOT_FOUND)
 
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            syllabus_data = self._build_syllabus_data(syllabus, masteries)
+            return Response({
+                "masteries": {
+                    "course_id": course.course_id,
+                    "course_mastery": self._calculate_mastery_for_course(course, masteries),
+                    "course_title": course.course_title,
+                    "syllabus": syllabus_data
+                }
+            }, status=status.HTTP_200_OK)
+
+        serializer = self.get_serializer(masteries, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+    def _build_syllabus_data(self, syllabus, masteries):
+        syllabus_data = []
+        for lesson in syllabus.lessons.all():
+            lesson_data = {
+                "lesson_id": lesson.id,
+                "lesson_title": lesson.lesson_title,
+                "mastery": self._calculate_mastery_for_lesson(lesson, masteries),
+                "topics": []
+            }
+
+            for topic in lesson.topics.all():
+                topic_data = {
+                    "topic_id": topic.id,
+                    "topic_title": topic.topic_title,
+                    "mastery": self._calculate_mastery_for_topic(topic, masteries),
+                    "subtopics": []
+                }
+
+                for subtopic in topic.subtopics.all():
+                    subtopic_data = {
+                        "subtopic_id": subtopic.id,
+                        "subtopic_title": subtopic.subtopic_title,
+                        "mastery": self._calculate_mastery_for_subtopic(subtopic, masteries),
+                        "learning_objectives": []
+                    }
+
+                    for learning_objective in subtopic.learning_objectives.all():
+                        mastery = masteries.filter(learning_objective=learning_objective).first()
+                        lo_mastery = mastery.mastery_level if mastery else 0.0
+
+                        learning_objective_data = {
+                            "objective_id": learning_objective.id,
+                            "objective_text": learning_objective.text,
+                            "mastery": lo_mastery
+                        }
+                        subtopic_data['learning_objectives'].append(learning_objective_data)
+                    topic_data['subtopics'].append(subtopic_data)
+                lesson_data['topics'].append(topic_data)
+            syllabus_data.append(lesson_data)
+        return syllabus_data
+
+        
+    def _calculate_mastery_for_course(self, course, masteries):
+        objectives = LearningObjective.objects.filter(subtopic__topic__lesson__syllabus__course=course)
+        return self._calculate_mastery(objectives, masteries)
+
+    def _calculate_mastery_for_lesson(self, lesson, masteries):
+        objectives = LearningObjective.objects.filter(subtopic__topic__lesson=lesson)
+        return self._calculate_mastery(objectives, masteries)
+
+    def _calculate_mastery_for_topic(self, topic, masteries):
+        objectives = LearningObjective.objects.filter(subtopic__topic=topic)
+        return self._calculate_mastery(objectives, masteries)
+
+    def _calculate_mastery_for_subtopic(self, subtopic, masteries):
+        objectives = LearningObjective.objects.filter(subtopic=subtopic)
+        return self._calculate_mastery(objectives, masteries)
+
+    def _calculate_mastery(self, objectives, masteries):
+        relevant_masteries = masteries.filter(learning_objective__in=objectives)
+        if not relevant_masteries.exists():
+            return 0.0
+        total_mastery = sum(mastery.mastery_level for mastery in relevant_masteries)
+        return total_mastery / relevant_masteries.count()
