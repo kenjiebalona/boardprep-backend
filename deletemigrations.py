@@ -14,7 +14,7 @@ def delete_migration_files_and_pycache(app_name):
 apps = [
     'Challenge',
     'Class',
-    'Course', 
+    'Course',
     'Discussion',
     'Exam',
     'Institution',
@@ -23,6 +23,7 @@ apps = [
     'Subscription',
     'User',
     'Preassessment',
+    'Mocktest',
 ]
 
 for app in apps:

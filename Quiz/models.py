@@ -12,7 +12,6 @@ from Question.models import StudentAnswer
 class Quiz(QuestionGenerator):
     id = models.AutoField(primary_key=True)
     lesson = models.ForeignKey('Course.Lesson', on_delete=models.CASCADE)
-    subtopic = models.ForeignKey('Course.Subtopic', on_delete=models.CASCADE)
     student = models.ForeignKey('User.Student', on_delete=models.CASCADE)
     class_instance = models.ForeignKey('Class.Class', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
