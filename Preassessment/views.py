@@ -35,7 +35,7 @@ class PreassessmentViewSet(viewsets.ModelViewSet):
 
         if created:
             try:
-                preassessment.generate_questions(num_easy=22, num_medium=12, num_hard=16)
+                preassessment.generate_questions(num_easy=20, num_medium=20, num_hard=10)
             except ValueError as e:
                 return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

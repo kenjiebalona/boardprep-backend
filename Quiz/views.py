@@ -72,6 +72,28 @@ class QuizViewSet(viewsets.ModelViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], url_path='sub/id')
+    def get_quizzes_by_subtopic_and_learning_objective(self, request, *args, **kwargs):
+        # Retrieve query parameters
+        subtopic_id = request.query_params.get('subtopic_id')
+        learning_objective_id = request.query_params.get('learning_objective_id')
+
+        if not subtopic_id or not learning_objective_id:
+            return Response(
+                {"detail": "Both 'subtopic_id' and 'learning_objective_id' query parameters are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Filter quizzes based on subtopic_id and learning_objective_id
+        quizzes = self.queryset.filter(
+            learning_objective__subtopic_id=subtopic_id,
+            learning_objective_id=learning_objective_id
+        )
+
+        # Serialize the filtered quizzes and return the response
+        serializer = self.get_serializer(quizzes, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def get_queryset(self):
         queryset = super().get_queryset()
         student_id = self.request.query_params.get('student_id')

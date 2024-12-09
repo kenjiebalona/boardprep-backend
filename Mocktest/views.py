@@ -33,7 +33,7 @@ class MocktestViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
 
         mocktest = Mocktest.objects.create(date=today, course=course)
-        mocktest.generate_questions(num_easy=1, num_medium=1, num_hard=1)
+        mocktest.generate_questions(num_easy=20, num_medium=20, num_hard=10)
 
         serializer = self.get_serializer(mocktest)
         return Response(serializer.data)
