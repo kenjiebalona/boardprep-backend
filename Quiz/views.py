@@ -8,6 +8,10 @@ from Question.models import StudentAnswer
 from Quiz.models import Quiz, StudentQuizAttempt
 from Quiz.serializer import QuizSerializer, StudentQuizAttemptSerializer
 from User.models import StudentMastery
+from Course.models import LearningObjective
+from Question.models import Question
+from Question.models import Choice
+from Course.models import Subtopic
 
 # Create your views here.
 class QuizViewSet(viewsets.ModelViewSet):
@@ -71,6 +75,31 @@ class QuizViewSet(viewsets.ModelViewSet):
             })
 
         return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='subtopic')
+    def subtopic(self, request, *args, **kwargs):
+        subtopic_id = request.query_params.get('id')
+        serializer = self.get_serializer(data=request.data)
+
+        try:
+            subtopic = Subtopic.objects.get(id=subtopic_id)
+        except Subtopic.DoesNotExist:
+            return Response({"detail": "Subtopic not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if serializer.is_valid():
+            quiz = serializer.save()
+
+        learning_objectives = LearningObjective.objects.filter(subtopic_id=subtopic_id)
+
+        questions = Question.objects.filter(learning_objective__in=learning_objectives)
+
+        quiz.questions.set(questions)
+
+        quiz.save()
+        response_serializer = self.get_serializer(quiz)
+        headers = self.get_success_headers(response_serializer.data)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
     def get_queryset(self):
         queryset = super().get_queryset()
