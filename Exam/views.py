@@ -27,9 +27,9 @@ class ExamViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            num_easy = 5  # Example hardcoded values
-            num_medium = 5
-            num_hard = 5
+            num_easy = 20  # Example hardcoded values
+            num_medium = 20
+            num_hard = 10
             exam = serializer.save()
             try:
                 questions = exam.generate_questions(num_easy, num_medium, num_hard)
@@ -96,13 +96,19 @@ class ExamViewSet(viewsets.ModelViewSet):
             return {}
 
         avg_questions_per_lesson = 25/ total_lessons
-        question_counts = {}
+        question_counts = {
+            24: 4,
+            25: 4,
+            26: 4,
+            27: 4,
+            28: 4,
+        }
 
-        for attempt in quiz_attempts:
-            lesson = attempt.quiz.lesson
-            weight = self._get_weight(attempt.score)
-            count = max(1, int(avg_questions_per_lesson * weight))
-            question_counts[lesson.id + 4] = count
+        # for attempt in quiz_attempts:
+        #     lesson = attempt.quiz.lesson
+        #     weight = self._get_weight(attempt.score)
+        #     count = max(1, int(avg_questions_per_lesson * weight))
+        #     question_counts[lesson.id] = count
 
         return self._adjust_question_counts(question_counts)
 
@@ -144,6 +150,7 @@ class ExamViewSet(viewsets.ModelViewSet):
     def _select_questions(self, exam, question_counts, difficulty_distribution):
         selected_questions = []
         for learning_objective_id, count in question_counts.items():
+            print(f"Selecting questions for learning objective: {learning_objective_id}")  # Debug print
             for difficulty, proportion in difficulty_distribution[learning_objective_id].items():
                 diff_count = int(count * proportion)
                 questions = Question.objects.filter(learning_objective_id=learning_objective_id, difficulty=difficulty).order_by('?')[:diff_count]
