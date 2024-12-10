@@ -324,3 +324,12 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['get'], url_path='by-id')
+    def get_attempts_by_id(self, request):
+        student_id = request.query_params.get('id')
+
+        if not student_id:
+            return Response({"detail": "Student ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(self.queryset.filter(quiz__student_id=student_id).values())

@@ -170,11 +170,19 @@ class ExamViewSet(viewsets.ModelViewSet):
         attempt_number=attempt_number
         ).first()
 
+
         if not attempt:
             return Response({"detail": "Invalid attempt."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if attempt.end_time:
-            return Response({"detail": "This attempt has already been submitted."}, status=status.HTTP_400_BAD_REQUEST)
+        # if attempt.end_time:
+        #     return Response({"detail": "This attempt has already been submitted."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if attempt:
+            attempt = StudentExamAttempt.objects.create(
+                exam=attempt.exam,
+                attempt_number=attempt.attempt_number + 1,
+                total_questions=attempt.total_questions
+            )
 
         score = self.calculate_score(request.data['answers'], exam, attempt)
         passed = (score / attempt.total_questions) >= exam.passing_score
