@@ -191,13 +191,15 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
         feedback = StudentQuizAttemptViewSet().generate_feedback(attempt)
         attempt.feedback = feedback
         attempt.save()
+        analytics = StudentQuizAttemptViewSet().generate_analytics(attempt)
 
         return Response({
             'score': attempt.score,
             'total_questions': attempt.total_questions,
             'passed': attempt.passed,
             'time_taken': str(time_taken),
-            'feedback': feedback
+            'feedback': feedback,
+            'analytics': analytics
         }, status=status.HTTP_200_OK)
 
     def create_answer_paragraph(self, correct_answers, wrong_answers):
@@ -297,6 +299,87 @@ class StudentQuizAttemptViewSet(viewsets.ModelViewSet):
         final_feedback = f"{ai_feedback}\n\nAdditional Performance Summary:\n{score_feedback}"
         print(f"Feedback generated: {final_feedback[:100]}...")
         return final_feedback
+
+    def generate_analytics(self, attempt):
+        print("Starting analytics generation")
+
+        correct_answers = StudentAnswer.objects.filter(quiz_attempt=attempt, is_correct=True)
+        wrong_answers = StudentAnswer.objects.filter(quiz_attempt=attempt, is_correct=False)
+
+        total_questions = attempt.total_questions
+        score_percentage = (attempt.score / total_questions) * 100 if total_questions > 0 else 0
+        passed = score_percentage >= 75
+
+        if attempt.end_time:
+            total_time = attempt.end_time - attempt.start_time
+            total_time_seconds = total_time.total_seconds()
+        else:
+            total_time_seconds = 0  # If end_time is not set yet
+        average_time_per_question = total_time_seconds / total_questions if total_questions > 0 else 0
+
+
+        # Analyze difficulty levels
+        difficulty_analysis = {
+            "correct": {},
+            "wrong": {}
+        }
+
+        for answer in correct_answers:
+            difficulty = answer.question.difficulty
+            difficulty_analysis["correct"].setdefault(difficulty, 0)
+            difficulty_analysis["correct"][difficulty] += 1
+
+        for answer in wrong_answers:
+            difficulty = answer.question.difficulty
+            difficulty_analysis["wrong"].setdefault(difficulty, 0)
+            difficulty_analysis["wrong"][difficulty] += 1
+
+        # Analyze learning objectives
+        learning_objective_analysis = {
+            "correct": {},
+            "wrong": {}
+        }
+
+        for answer in correct_answers:
+            learning_objective_text = answer.question.learning_objective.text
+            learning_objective_analysis["correct"].setdefault(learning_objective_text, 0)
+            learning_objective_analysis["correct"][learning_objective_text] += 1
+
+        for answer in wrong_answers:
+            learning_objective_text = answer.question.learning_objective.text
+            learning_objective_analysis["wrong"].setdefault(learning_objective_text, 0)
+            learning_objective_analysis["wrong"][learning_objective_text] += 1
+
+
+        # Summary of performance trends
+        performance_trends = {
+            "strong_learning_objectives": [
+                obj for obj, count in learning_objective_analysis["correct"].items() if count >= 3
+            ],
+            "weak_learning_objectives": [
+                obj for obj, count in learning_objective_analysis["wrong"].items() if count >= 3
+            ],
+            "hardest_difficulty": max(difficulty_analysis["wrong"].items(), key=lambda x: x[1], default=None),
+            "easiest_difficulty": max(difficulty_analysis["correct"].items(), key=lambda x: x[1], default=None)
+        }
+
+        # Construct analytics object
+        analytics = {
+            "total_questions": total_questions,
+            "correct_answers": correct_answers.count(),
+            "wrong_answers": wrong_answers.count(),
+            "score_percentage": round(score_percentage, 2),
+            "difficulty_analysis": difficulty_analysis,
+            "learning_objective_analysis": learning_objective_analysis,
+            "time_spent": {
+                "total_time": total_time_seconds,
+                "average_time_per_question": round(average_time_per_question, 2)
+            },
+            "performance_trends": performance_trends
+        }
+
+        print("Analytics generated:", analytics)
+        return analytics
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
