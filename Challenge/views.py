@@ -97,7 +97,7 @@ class StudentChallengeAttemptViewSet(viewsets.ModelViewSet):
 
         subtopic_answers = {}
         for answer in answers:
-            subtopic = answer.question.subtopic
+            subtopic = answer.question.learning_objective
             if subtopic not in subtopic_answers:
                 subtopic_answers[subtopic] = []
             subtopic_answers[subtopic].append({
@@ -106,7 +106,7 @@ class StudentChallengeAttemptViewSet(viewsets.ModelViewSet):
             })
 
         for subtopic, answers in subtopic_answers.items():
-            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, subtopic=subtopic)
+            student_mastery, created = StudentMastery.objects.get_or_create(student=attempt.student, learning_objective=subtopic)
             student_mastery.update_mastery(answers)
 
         attempt.score = correct_answers_count
