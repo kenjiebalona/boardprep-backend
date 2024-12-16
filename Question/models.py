@@ -11,6 +11,7 @@ class Question(models.Model):
     text = models.TextField()
     difficulty = models.IntegerField(choices=[(1, 'Beginner'), (2, 'Intermediate'), (3, 'Advanced')])
     attachments = models.ManyToManyField(Attachment, blank=True, related_name='questions')
+    isai = models.BooleanField(default=False)
 
     def __str__(self):
         difficulty_label = dict(self._meta.get_field('difficulty').choices).get(self.difficulty, 'Unknown')

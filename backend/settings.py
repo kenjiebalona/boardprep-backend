@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-q3ama#b3n&7wgajypuc-cr60)z*b)s6flkc#b_@8$1s1848zy)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['boardprep.com:5173','http://127.0.0.1','127.0.0.1','127.0.0.1:8000',]
 
 
 # Application definition
@@ -85,6 +85,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "https://boardprep.vercel.app",
     "http://localhost:5173",
+    'http://boardprep.com:5173'
     # ... other allowed origins ...
 ]
 
