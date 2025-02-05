@@ -8,8 +8,10 @@ from rest_framework.response import Response
 from Question.models import StudentAnswer, Choice
 from User.models import StudentMastery
 from Course.models import Course
-from .models import Mocktest, StudentMocktestAttempt
-from .serializer import MocktestSerializer, StudentMocktestAttemptSerializer
+from .models import Mocktest, StudentMocktestAttempt, MocktestSetQuestion, MocktestQuestion
+from .serializer import MocktestSerializer, StudentMocktestAttemptSerializer, MocktestSetQuestionSerializer, MocktestQuestionSerializer
+from Question.models import Question
+from Question.serializer import QuestionSerializer
 import os, environ
 from openai import OpenAI
 
@@ -38,6 +40,90 @@ class MocktestViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(mocktest)
         return Response(serializer.data)
+
+    # @action(detail=False, methods=['get'])
+    # def generate_from_set(self, request):
+    #     course_id = request.query_params.get('course_id')
+    #     course_id = "FME101"
+    #     today = timezone.now().date()
+
+    #     if not course_id:
+    #         return Response({"detail": "course_id parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    #     try:
+
+    #         # Create new mocktest
+    #         course = Course.objects.get(course_id=course_id)
+    #         mocktest = Mocktest.objects.create(date=today, course=course)
+
+    #         # Get all MocktestSetQuestions for the course's learning objectives
+    #         mocktest_sets = MocktestSetQuestion.objects.all()
+
+    #         selected_questions = []
+
+    #         # Generate questions based on each MocktestSetQuestion specification
+    #         for mocktest_set in mocktest_sets:
+    #             # Get regular questions
+    #             regular_questions = Question.objects.filter(
+    #                 learning_objective=mocktest_set.learning_objective,
+    #                 difficulty=mocktest_set.difficulty,
+    #                 isai=False
+    #             ).order_by('?')[:mocktest_set.number_of_questions]
+
+    #             # Get AI-generated questions
+    #             ai_questions = Question.objects.filter(
+    #                 learning_objective=mocktest_set.learning_objective,
+    #                 difficulty=mocktest_set.difficulty,
+    #                 isai=True
+    #             ).order_by('?')[:mocktest_set.number_ai_questions]
+
+    #             selected_questions.extend(regular_questions)
+    #             selected_questions.extend(ai_questions)
+
+    #         # Add questions to mocktest
+    #         mocktest.questions.set(selected_questions)
+
+    #         serializer = self.get_serializer(mocktest)
+    #         return Response(serializer.data)
+
+    #     except Exception as e:
+    #         return Response(
+    #             {"detail": str(e)},
+    #             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    #         )
+
+    @action(detail=False, methods=['get'])
+    def generate_from_set(self, request):
+        course_id = request.query_params.get('course_id')
+        course_id = "FME101"
+        today = timezone.now().date()
+
+        if not course_id:
+            return Response({"detail": "course_id parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+
+            # Create new mocktest
+            course = Course.objects.get(course_id=course_id)
+            mocktest = Mocktest.objects.create(date=today, course=course)
+
+            mocktest_questions = MocktestQuestion.objects.all()
+
+            question_ids = mocktest_questions.values_list('question_id', flat=True).distinct()
+
+            selected_questions = Question.objects.filter(id__in=question_ids)
+
+            # Add questions to mocktest
+            mocktest.questions.set(selected_questions)
+
+            serializer = self.get_serializer(mocktest)
+            return Response(serializer.data)
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -321,3 +407,268 @@ class StudentMocktestAttemptViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+class MocktestSetQuestionViewSet(viewsets.ModelViewSet):
+    queryset = MocktestSetQuestion.objects.all()
+    serializer_class = MocktestSetQuestionSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # @action(detail=False, methods=['post'])
+    # def bulk(self, request, *args, **kwargs):
+    #     serializer = self.get_serializer(data=request.data, many=True)
+    #     if serializer.is_valid():
+    #         self.perform_create(serializer)
+    #         headers = self.get_success_headers(serializer.data)
+    #         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def bulk(self, request, *args, **kwargs):
+        """
+        Bulk create MocktestSetQuestions with automatic syncing
+        """
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        # Save and sync each created instance
+        instances = serializer.save()
+
+        for instance in instances:
+            self.sync_mocktest_questions(instance)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if serializer.is_valid():
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        mocktest_set_question_id = instance.id
+
+        MocktestQuestion.objects.filter(mocktest_set_question_id=mocktest_set_question_id).delete()
+
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def sync_mocktest_questions(self, instance):
+        # Calculate current number of associated MocktestQuestions
+        current_mocktest_questions = MocktestQuestion.objects.filter(
+            mocktest_set_question_id=instance
+        )
+
+        total_expected_questions = instance.number_of_questions + instance.number_ai_questions
+        current_count = current_mocktest_questions.count()
+
+        if current_count > total_expected_questions:
+            # Remove excess questions
+            ai_questions = current_mocktest_questions.filter(question__isai=True)
+            non_ai_questions = current_mocktest_questions.filter(question__isai=False)
+
+            ai_current = ai_questions.count()
+            non_ai_current = non_ai_questions.count()
+
+            ai_to_remove = max(0, ai_current - instance.number_ai_questions)
+            non_ai_to_remove = max(0, non_ai_current - instance.number_of_questions)
+
+            for _ in range(ai_to_remove):
+                question_to_delete = ai_questions.order_by('?').first()
+                if question_to_delete:
+                    question_to_delete.delete()
+
+            for _ in range(non_ai_to_remove):
+                question_to_delete = non_ai_questions.order_by('?').first()
+                if question_to_delete:
+                    question_to_delete.delete()
+
+        elif current_count < total_expected_questions:
+            # Find additional questions to add
+            # First, get existing question IDs to avoid duplicates
+            existing_question_ids = current_mocktest_questions.values_list('question_id', flat=True)
+
+            # Determine question types to add
+            regular_needed = instance.number_of_questions - current_mocktest_questions.filter(
+                question__isai=False
+            ).count()
+
+            ai_needed = instance.number_ai_questions - current_mocktest_questions.filter(
+                question__isai=True
+            ).count()
+
+            # Query for additional regular questions
+            additional_regular_questions = Question.objects.filter(
+                learning_objective=instance.learning_objective,
+                difficulty=instance.difficulty,
+                isai=False
+            ).exclude(id__in=existing_question_ids).order_by('?')[:regular_needed]
+
+            # Query for additional AI questions
+            additional_ai_questions = Question.objects.filter(
+                learning_objective=instance.learning_objective,
+                difficulty=instance.difficulty,
+                isai=True
+            ).exclude(id__in=existing_question_ids).order_by('?')[:ai_needed]
+
+            new_mocktest_questions = []
+            for question in list(additional_regular_questions) + list(additional_ai_questions):
+                MocktestQuestion.objects.create(
+                    mocktest_set_question_id=instance,
+                    question=question
+                )
+
+    def perform_update(self, serializer):
+        """
+        Override perform_update to synchronize MocktestQuestions after update
+        """
+        instance = serializer.save()
+        self.sync_mocktest_questions(instance)
+        return instance
+
+    def perform_create(self, serializer):
+        """
+        Override perform_create to synchronize MocktestQuestions after creation
+        """
+        instance = serializer.save()
+        self.sync_mocktest_questions(instance)
+        return instance
+
+class MocktestQuestionViewSet(viewsets.ModelViewSet):
+    queryset = MocktestQuestion.objects.all()
+    serializer_class = MocktestQuestionSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def bulk(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data, many=True)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if serializer.is_valid():
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        mocktest_set_question = instance.mocktest_set_question_id
+
+        if instance.question.isai:
+            mocktest_set_question.number_ai_questions -= 1
+        else:
+            mocktest_set_question.number_of_questions -= 1
+
+        mocktest_set_question.save()
+
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['post'])
+    def initialize(self, request, *args, **kwargs):
+        # Get optional filters from request
+        mocktest_set_id = request.data.get('mocktest_set_question_id')
+
+        # Query MocktestSetQuestion with optional filters
+        mocktest_set_questions = MocktestSetQuestion.objects.all()
+
+        if mocktest_set_id:
+            mocktest_set_questions = mocktest_set_questions.filter(id=mocktest_set_id)
+
+        created_questions = []
+
+        for mocktest_set_question in mocktest_set_questions:
+            regular_questions_needed = mocktest_set_question.number_of_questions
+            ai_questions_needed = mocktest_set_question.number_ai_questions
+
+            # Find existing questions for this mocktest set
+            existing_question_ids = MocktestQuestion.objects.filter(
+                mocktest_set_question_id=mocktest_set_question
+            ).values_list('question_id', flat=True)
+
+            available_regular_questions = Question.objects.filter(
+                learning_objective=mocktest_set_question.learning_objective,
+                difficulty=mocktest_set_question.difficulty,
+                isai=False  # Assuming there's a flag to identify AI-generated questions
+            ).exclude(id__in=existing_question_ids)
+
+            available_ai_questions = Question.objects.filter(
+                learning_objective=mocktest_set_question.learning_objective,
+                difficulty=mocktest_set_question.difficulty,
+                isai=True  # Assuming there's a flag to identify AI-generated questions
+            ).exclude(id__in=existing_question_ids)
+
+            selected_regular_questions = available_regular_questions.order_by('?')[:regular_questions_needed]
+            selected_ai_questions = available_ai_questions.order_by('?')[:ai_questions_needed]
+
+            selected_questions = list(selected_regular_questions) + list(selected_ai_questions)
+
+            for question in selected_questions:
+                mocktest_question = MocktestQuestion.objects.create(
+                    mocktest_set_question_id=mocktest_set_question,
+                    question=question
+                )
+                created_questions.append(mocktest_question)
+
+
+        serializer = self.get_serializer(created_questions, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'])
+    def get_mocktest_questions(self, request, *args, **kwargs):
+        mocktest_questions = MocktestQuestion.objects.all()
+
+        question_ids = mocktest_questions.values_list('question_id', flat=True).distinct()
+
+        questions = Question.objects.filter(id__in=question_ids)
+
+        serializer = QuestionSerializer(questions, many=True)
+
+        return Response(serializer.data)

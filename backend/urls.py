@@ -12,7 +12,7 @@ from Question.views import QuestionViewSet, ChoiceViewSet, StudentAnswerViewSet
 from Quiz.views import QuizViewSet, StudentQuizAttemptViewSet
 from User.views import StudentViewSet, TeacherViewSet, SpecializationViewSet, StudentMasteryView
 from Preassessment.views import PreassessmentViewSet, StudentPreassessmentAttemptViewSet
-from Mocktest.views import MocktestViewSet, StudentMocktestAttemptViewSet
+from Mocktest.views import MocktestViewSet, StudentMocktestAttemptViewSet, MocktestSetQuestionViewSet, MocktestQuestionViewSet
 from Course import views
 
 
@@ -56,6 +56,8 @@ router.register(r'studentPreassessmentAttempt', StudentPreassessmentAttemptViewS
 router.register(r'mocktest', MocktestViewSet, basename='postassessment')
 router.register(r'studentMocktestAttempt', StudentMocktestAttemptViewSet, basename='studentMocktestAttempt')
 router.register(r'mastery', StudentMasteryView, basename='get_student_mastery')
+router.register(r'mocktest-set-questions', MocktestSetQuestionViewSet, basename='mocktest-set-questions')
+router.register(r'mocktest-questions', MocktestQuestionViewSet, basename='mocktest-questions')
 
 # router.register(r'daily-challenges', DailyChallengeViewSet, basename='daily-challenges')
 # router.register(r'daily-challenge-questions', DailyChallengeQuestionViewSet, basename='daily-challenge-questions')

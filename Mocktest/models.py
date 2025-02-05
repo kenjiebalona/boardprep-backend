@@ -35,3 +35,12 @@ class StudentMocktestAttempt(models.Model):
         return f"{self.student} - {self.mocktest} - {self.score}"
 
 # Create your models here.
+class MocktestSetQuestion(models.Model):
+    learning_objective =  models.ForeignKey('Course.LearningObjective', on_delete=models.CASCADE, related_name='learning_objective')
+    difficulty = models.IntegerField(choices=[(1, 'Beginner'), (2, 'Intermediate'), (3, 'Advanced')])
+    number_of_questions = models.IntegerField()
+    number_ai_questions = models.IntegerField()
+
+class MocktestQuestion(models.Model):
+    mocktest_set_question_id = models.ForeignKey(MocktestSetQuestion, on_delete=models.CASCADE, related_name='mocktest')
+    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='question')
